@@ -1,0 +1,4 @@
+directory: ~/beets-subsonic-music
+library: ~/beets-subsonic-music/library.blb
+
+plugins: subsonic
