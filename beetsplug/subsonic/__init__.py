@@ -53,6 +53,13 @@ def get_license(response):
     return response
 
 
+@rest_api.route('/getMusicFolders.view')
+@subsonic
+def get_music_folders(response):
+    response.musicFolders = api.MusicFolders()
+    response.musicFolders.append(api.MusicFolder(id=1, name='beets library'))
+    return response
+
 app = Flask(__name__)
 app.response_class = SubsonicResponse
 app.register_blueprint(rest_api, url_prefix='/rest')
