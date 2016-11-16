@@ -1,5 +1,3 @@
-from functools import wraps
-
 import pyxb.utils.domutils
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand
@@ -51,8 +49,10 @@ def get_license():
 @rest_api.route('/getMusicFolders.view')
 def get_music_folders():
     g.response.musicFolders = bindings.MusicFolders()
-    g.response.musicFolders.append(bindings.MusicFolder(id=1, name='beets library'))
+    g.response.musicFolders.append(
+        bindings.MusicFolder(id=1, name='beets library'))
     return g.response
+
 
 app = Flask(__name__)
 app.response_class = SubsonicResponse
