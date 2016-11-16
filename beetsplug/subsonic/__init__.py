@@ -40,9 +40,16 @@ def subsonic(func):
 rest_api = Blueprint('rest_api', __name__)
 
 
-@rest_api.route("/ping.view")
+@rest_api.route('/ping.view')
 @subsonic
 def ping(response):
+    return response
+
+
+@rest_api.route('/getLicense.view')
+@subsonic
+def get_license(response):
+    response.license = api.License(valid=True)
     return response
 
 
