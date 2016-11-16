@@ -35,6 +35,10 @@ def init_response():
     g.response.status = bindings.ResponseStatus.ok
 
 
+@rest_api.before_request
+def init_lib():
+    g.lib = app.config['lib']
+
 @rest_api.route('/ping.view')
 def ping():
     return g.response
@@ -54,12 +58,25 @@ def get_music_folders():
     return g.response
 
 
+@rest_api.route('/getIndexes.view')
+def get_indexes():
+    g.response.indexes = bindings.Indexes()
+
+    with g.lib.transaction() as tx:
+        rows = tx.query("SELECT DISTINCT albumartist FROM albums")
+    all_artists = [row[0] for row in rows]
+
+    g.response.indexes.ignoredArticles = 'The El La Los Las Le Les'
+    g.response.indexes.lastModified = 0
+    return g.response
+
 app = Flask(__name__)
 app.response_class = SubsonicResponse
 app.register_blueprint(rest_api, url_prefix='/rest')
 
 
 def init_server(lib, opts, args):
+    app.config['lib'] = lib
     app.run(debug=True)
 
 
