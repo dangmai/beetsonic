@@ -1,19 +1,29 @@
 import pyxb.utils.domutils
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand
-from flask import Blueprint
+from flask import Blueprint, jsonify
 from flask import Flask
+from flask import Response
 
 from generated import api
 
 pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(api.Namespace)
 
-rest_api = Blueprint('rest_api', __name__)
 
-@rest_api.after_request
-def add_header(response):
-    response.headers['Content-Type'] = 'application/xml; charset=utf-8'
-    return response
+class SubsonicResponse(Response):
+    def __init__(self, content=None, *args, **kwargs):
+        if isinstance(content, api.Response):
+            kwargs['mimetype'] = 'application/xml'
+            content = content.toxml('utf-8')
+        super(Response, self).__init__(content, *args, **kwargs)
+
+    @classmethod
+    def force_type(cls, response, environ=None):
+        if isinstance(response, api.Response):
+            return cls(response)
+        return super(Response, cls).force_type(response, environ)
+
+rest_api = Blueprint('rest_api', __name__)
 
 
 @rest_api.route("/ping.view")
@@ -21,11 +31,13 @@ def ping():
     response = api.subsonic_response()
     response.version = api.Version('1.14.0')
     response.status = api.ResponseStatus.ok
-    return response.toxml('utf-8'), 200
+    return response
 
 
 app = Flask(__name__)
+app.response_class = SubsonicResponse
 app.register_blueprint(rest_api, url_prefix='/rest')
+
 
 def init_server(lib, opts, args):
     app.run(debug=True)
