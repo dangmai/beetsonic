@@ -10,13 +10,18 @@ pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(api.Namespace)
 
 rest_api = Blueprint('rest_api', __name__)
 
+@rest_api.after_request
+def add_header(response):
+    response.headers['Content-Type'] = 'application/xml; charset=utf-8'
+    return response
+
 
 @rest_api.route("/ping.view")
 def ping():
     response = api.subsonic_response()
     response.version = api.Version('1.14.0')
     response.status = api.ResponseStatus.ok
-    return response.toxml('utf-8'), 200, {'Content-Type': 'application/xml; charset=utf-8'}
+    return response.toxml('utf-8'), 200
 
 
 app = Flask(__name__)
