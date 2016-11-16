@@ -6,6 +6,7 @@ from beets.ui import Subcommand
 from flask import Blueprint
 from flask import Flask
 from flask import Response
+from flask import g
 
 from generated import api
 
@@ -26,39 +27,32 @@ class SubsonicResponse(Response):
         return super(Response, cls).force_type(response, environ)
 
 
-def subsonic(func):
-    @wraps(func)
-    def decorated_function(*args, **kwargs):
-        response = api.subsonic_response()
-        response.version = api.Version('1.14.0')
-        response.status = api.ResponseStatus.ok
-        return func(response, *args, **kwargs)
-
-    return decorated_function
-
-
 rest_api = Blueprint('rest_api', __name__)
 
 
+@rest_api.before_request
+def init_response():
+    g.response = api.subsonic_response()
+    g.response.version = api.Version('1.14.0')
+    g.response.status = api.ResponseStatus.ok
+
+
 @rest_api.route('/ping.view')
-@subsonic
-def ping(response):
-    return response
+def ping():
+    return g.response
 
 
 @rest_api.route('/getLicense.view')
-@subsonic
-def get_license(response):
-    response.license = api.License(valid=True)
-    return response
+def get_license():
+    g.response.license = api.License(valid=True)
+    return g.response
 
 
 @rest_api.route('/getMusicFolders.view')
-@subsonic
-def get_music_folders(response):
-    response.musicFolders = api.MusicFolders()
-    response.musicFolders.append(api.MusicFolder(id=1, name='beets library'))
-    return response
+def get_music_folders():
+    g.response.musicFolders = api.MusicFolders()
+    g.response.musicFolders.append(api.MusicFolder(id=1, name='beets library'))
+    return g.response
 
 app = Flask(__name__)
 app.response_class = SubsonicResponse
