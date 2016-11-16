@@ -8,21 +8,21 @@ from flask import Flask
 from flask import Response
 from flask import g
 
-from generated import api
+import bindings
 
-pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(api.Namespace)
+pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(bindings.Namespace)
 
 
 class SubsonicResponse(Response):
     def __init__(self, content=None, *args, **kwargs):
-        if isinstance(content, api.Response):
+        if isinstance(content, bindings.Response):
             kwargs['mimetype'] = 'application/xml'
             content = content.toxml('utf-8')
         super(Response, self).__init__(content, *args, **kwargs)
 
     @classmethod
     def force_type(cls, response, environ=None):
-        if isinstance(response, api.Response):
+        if isinstance(response, bindings.Response):
             return cls(response)
         return super(Response, cls).force_type(response, environ)
 
@@ -32,9 +32,9 @@ rest_api = Blueprint('rest_api', __name__)
 
 @rest_api.before_request
 def init_response():
-    g.response = api.subsonic_response()
-    g.response.version = api.Version('1.14.0')
-    g.response.status = api.ResponseStatus.ok
+    g.response = bindings.subsonic_response()
+    g.response.version = bindings.Version('1.14.0')
+    g.response.status = bindings.ResponseStatus.ok
 
 
 @rest_api.route('/ping.view')
@@ -44,14 +44,14 @@ def ping():
 
 @rest_api.route('/getLicense.view')
 def get_license():
-    g.response.license = api.License(valid=True)
+    g.response.license = bindings.License(valid=True)
     return g.response
 
 
 @rest_api.route('/getMusicFolders.view')
 def get_music_folders():
-    g.response.musicFolders = api.MusicFolders()
-    g.response.musicFolders.append(api.MusicFolder(id=1, name='beets library'))
+    g.response.musicFolders = bindings.MusicFolders()
+    g.response.musicFolders.append(bindings.MusicFolder(id=1, name='beets library'))
     return g.response
 
 app = Flask(__name__)

@@ -1,5 +1,5 @@
-beets-subsonic
-==============
+beetsonic
+=========
 
 Subsonic server interface for [beets](http://beets.io/). 
 Work in progress version.
@@ -10,5 +10,5 @@ Development
 
 In order to generate Python binding class from Subsonic XSD:
 ```
-pyxbgen -u xsd/subsonic-rest-api-version.xsd -m beetsplug.subsonic.generated.api
+pyxbgen -u xsd/subsonic-rest-api-version.xsd -m beetsplug.subsonic.bindings
 ```

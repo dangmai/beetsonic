@@ -1,7 +1,7 @@
-# .\beetsplug\subsonic\generated\api.py
+# .\beetsplug\subsonic\bindings.py
 # -*- coding: utf-8 -*-
 # PyXB bindings for NM:dc8ebe00992167d927839951885240a59c8d17f2
-# Generated 2016-11-15 17:55:00.628000 by PyXB version 1.2.5 using Python 2.7.8.final.0
+# Generated 2016-11-16 16:03:56.862000 by PyXB version 1.2.5 using Python 2.7.8.final.0
 # Namespace http://subsonic.org/restapi
 
 from __future__ import unicode_literals
@@ -14,7 +14,7 @@ import pyxb.utils.domutils
 import sys
 import pyxb.utils.six as _six
 # Unique identifier for bindings created at the same time
-_GenerationUID = pyxb.utils.utility.UniqueIdentifier('urn:uuid:8989b6d1-ab86-11e6-878a-cc3d829ae560')
+_GenerationUID = pyxb.utils.utility.UniqueIdentifier('urn:uuid:30075491-ac40-11e6-876d-cc3d829ae560')
 
 # Version of PyXB used to generate the bindings
 _PyXBVersion = '1.2.5'
