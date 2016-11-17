@@ -83,7 +83,7 @@ def init_server(lib, opts, args):
 
 
 beetsonic_cmd = Subcommand('sonic',
-                           help='Run Subsonic server inteface for beets')
+                           help='Run Subsonic server interface for beets')
 beetsonic_cmd.func = init_server
 
 
