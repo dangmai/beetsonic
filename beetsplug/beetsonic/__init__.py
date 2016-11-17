@@ -39,6 +39,7 @@ def init_response():
 def init_lib():
     g.lib = app.config['lib']
 
+
 @rest_api.route('/ping.view')
 def ping():
     return g.response
@@ -70,6 +71,7 @@ def get_indexes():
     g.response.indexes.lastModified = 0
     return g.response
 
+
 app = Flask(__name__)
 app.response_class = SubsonicResponse
 app.register_blueprint(rest_api, url_prefix='/rest')
@@ -80,10 +82,11 @@ def init_server(lib, opts, args):
     app.run(debug=True)
 
 
-subsonic_cmd = Subcommand('subsonic', help='Run Subsonic server')
-subsonic_cmd.func = init_server
+beetsonic_cmd = Subcommand('sonic',
+                           help='Run Subsonic server inteface for beets')
+beetsonic_cmd.func = init_server
 
 
-class SubsonicServer(BeetsPlugin):
+class BeetsonicServer(BeetsPlugin):
     def commands(self):
-        return [subsonic_cmd]
+        return [beetsonic_cmd]
