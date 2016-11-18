@@ -1,60 +1,70 @@
+import json
+
 import pyxb.utils.domutils
 from flask import Blueprint
 from flask import Flask
 from flask import Response
-from flask import g
+from flask import request
+from flask.views import View
 
 import bindings
 
 SUBSONIC_API_VERSION = '1.14.0'
 
 
-class SubsonicHTTPResponse(Response):
-    def __init__(self, content=None, *args, **kwargs):
-        if isinstance(content, bindings.Response):
-            kwargs['mimetype'] = 'application/xml'
-            content = content.toxml('utf-8')
-        super(Response, self).__init__(content, *args, **kwargs)
+class ResponseView(View):
+    def __init__(self, generate_response_func=None):
+        self.generate_response_func = generate_response_func
+        self.response = bindings.subsonic_response()
+        self.response.version = bindings.Version(SUBSONIC_API_VERSION)
+        self.response.status = bindings.ResponseStatus.ok
 
-    @classmethod
-    def force_type(cls, response, environ=None):
-        if isinstance(response, bindings.Response):
-            return cls(response)
-        return super(Response, cls).force_type(response, environ)
+    def dispatch_request(self):
+        if self.generate_response_func:
+            self.generate_response_func(self.response)
+        return_format = request.args.get('f', 'xml')
+        if return_format == 'json':
+            content = json.dumps(self.response)
+            mimetype = 'application/json'
+        else:
+            content = self.response.toxml('utf-8')
+            mimetype = 'application/xml'
+        return Response(content, mimetype=mimetype)
 
 
 def create_blueprint(model):
     rest_api = Blueprint('rest_api', __name__)
 
-    @rest_api.before_request
-    def init_response():
-        g.response = bindings.subsonic_response()
-        g.response.version = bindings.Version(SUBSONIC_API_VERSION)
-        g.response.status = bindings.ResponseStatus.ok
+    def ping(_):
+        pass
 
-    @rest_api.route('/ping.view')
-    def ping():
-        return g.response
+    def get_licenses(response):
+        response.license = bindings.License(valid=True)
 
-    @rest_api.route('/getLicense.view')
-    def get_license():
-        g.response.license = bindings.License(valid=True)
-        return g.response
-
-    @rest_api.route('/getMusicFolders.view')
-    def get_music_folders():
-        g.response.musicFolders = bindings.MusicFolders()
-        g.response.musicFolders.append(
+    def get_music_folders(response):
+        response.musicFolders = bindings.MusicFolders()
+        response.musicFolders.append(
             bindings.MusicFolder(id=1, name='beets library'))
-        return g.response
 
-    @rest_api.route('/getIndexes.view')
-    def get_indexes():
-        g.response.indexes = bindings.Indexes()
-        g.response.indexes.ignoredArticles = 'The El La Los Las Le Les'
-        g.response.indexes.lastModified = 0
+    def get_indexes(response):
+        response.indexes = bindings.Indexes()
+        response.indexes.ignoredArticles = 'The El La Los Las Le Les'
+        response.indexes.lastModified = 0
         print(model.get_indexes())
-        return g.response
+
+    def route(end_point, generate_response_func):
+        rest_api.add_url_rule(
+            end_point,
+            view_func=ResponseView.as_view(
+                generate_response_func.__name__,
+                generate_response_func=generate_response_func
+            )
+        )
+
+    route('/ping.view', ping)
+    route('/getLicenses.view', get_licenses)
+    route('/getMusicFolders.view', get_music_folders)
+    route('/getIndexes.view', get_indexes)
 
     return rest_api
 
@@ -66,5 +76,4 @@ class SubsonicServer(Flask):
         pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(
             bindings.Namespace)
 
-        self.response_class = SubsonicHTTPResponse
         self.register_blueprint(create_blueprint(model), url_prefix='/rest')
