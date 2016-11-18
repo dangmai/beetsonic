@@ -38,11 +38,18 @@ class ResponseView(View):
 def create_blueprint(model, configs):
     rest_api = Blueprint('rest_api', __name__)
 
-    def unauthorized(response):
+    def unauthenticated(response):
         create_error_response(
             response,
             errors.AUTHENTICATION_ERROR_CODE,
             errors.AUTHENTICATION_ERROR_MSG
+        )
+
+    def forbidden(response):
+        create_error_response(
+            response,
+            errors.USER_NOT_AUTHORIZED_ERROR_CODE,
+            errors.USER_NOT_AUTHORIZED_ERROR_MSG
         )
 
     def data_not_found(response):
@@ -151,6 +158,9 @@ def create_blueprint(model, configs):
         response.users = bindings.Users()
         response.users.append(_get_user())
 
+    def create_user(response):
+        forbidden(response)
+
     @rest_api.before_request
     def authenticate():
         if 'u' not in request.args:
@@ -197,7 +207,7 @@ def create_blueprint(model, configs):
             )
         )
 
-    error(403, unauthorized)
+    error(403, unauthenticated)
     error(404, data_not_found)
     route('/ping.view', ping)
     route('/getLicenses.view', get_licenses)
@@ -205,6 +215,7 @@ def create_blueprint(model, configs):
     route('/getIndexes.view', get_indexes)
     route('/getUser.view', get_user)
     route('/getUsers.view', get_users)
+    route('/createUser.view', create_user)
 
     return rest_api
 
