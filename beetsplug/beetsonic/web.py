@@ -204,6 +204,18 @@ class SubsonicServer(Flask):
         def create_user(response):
             forbidden(response)
 
+        @api.route('/updateUser.view')
+        def update_user(response):
+            forbidden(response)
+
+        @api.route('/deleteUser.view')
+        def delete_user(response):
+            forbidden(response)
+
+        @api.route('/changePassword.view')
+        def change_password(response):
+            forbidden(response)
+
         @api.before_request
         def authenticate():
             if 'u' not in request.args:
