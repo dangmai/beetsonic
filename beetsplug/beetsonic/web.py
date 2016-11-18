@@ -47,10 +47,47 @@ def create_blueprint(model):
             bindings.MusicFolder(id=1, name='beets library'))
 
     def get_indexes(response):
+        if_modified_since = request.args.get('ifModifiedSince', 0)
+        last_modified = model.get_last_modified()
+        if last_modified <= if_modified_since:
+            return
+
         response.indexes = bindings.Indexes()
-        response.indexes.ignoredArticles = 'The El La Los Las Le Les'
-        response.indexes.lastModified = 0
-        print(model.get_indexes())
+        response.indexes.ignoredArticles = ''
+        response.indexes.lastModified = last_modified
+        album_artists = model.get_album_artists()
+
+        def index_func(map, item):
+            first_char = item[:1].upper()
+            if first_char not in map:
+                map[first_char] = []
+            map[first_char].append(item)
+            return map
+
+        # Map the uppercased character to a list of album artists whose names
+        # start with that character
+        char_map = reduce(
+            index_func,
+            album_artists,
+            dict()
+        )
+        for char, artists in sorted(char_map.iteritems()):
+            index = bindings.Index(name=char)
+            for artist in artists:
+                index.append(bindings.Artist(id=artist, name=artist))
+            response.indexes.append(index)
+
+        # Get items without albums
+        children = model.get_singletons()
+        for child in children:
+            response.indexes.append(
+                bindings.Child(
+                    isDir=False,
+                    id=child.id,
+                    title=child.title,
+                    artist=child.artist
+                )
+            )
 
     def route(end_point, generate_response_func):
         rest_api.add_url_rule(
