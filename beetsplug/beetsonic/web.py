@@ -35,189 +35,32 @@ class ResponseView(View):
         return Response(content, mimetype=mimetype)
 
 
-def create_blueprint(model, configs):
-    rest_api = Blueprint('rest_api', __name__)
-
-    def unauthenticated(response):
-        create_error_response(
-            response,
-            errors.AUTHENTICATION_ERROR_CODE,
-            errors.AUTHENTICATION_ERROR_MSG
-        )
-
-    def forbidden(response):
-        create_error_response(
-            response,
-            errors.USER_NOT_AUTHORIZED_ERROR_CODE,
-            errors.USER_NOT_AUTHORIZED_ERROR_MSG
-        )
-
-    def data_not_found(response):
-        create_error_response(
-            response,
-            errors.DATA_NOT_FOUND_ERROR_CODE,
-            errors.DATA_NOT_FOUND_ERROR_MSG
-        )
-
-    def required_parameter_missing(response):
-        create_error_response(
-            response,
-            errors.REQUIRED_PARAMETER_ERROR_CODE,
-            errors.REQUIRED_PARAMETER_ERROR_MSG
-        )
-
-    def create_error_response(response, code, message):
-        response.status = bindings.ResponseStatus.failed
-        response.error = bindings.Error(code=code, message=message)
-
-    def ping(_):
-        pass
-
-    def get_licenses(response):
-        response.license = bindings.License(valid=True)
-
-    def get_music_folders(response):
-        response.musicFolders = bindings.MusicFolders()
-        response.musicFolders.append(
-            bindings.MusicFolder(id=1, name='beets library'))
-
-    def get_indexes(response):
-        if_modified_since = request.args.get('ifModifiedSince', 0)
-        last_modified = model.get_last_modified()
-        if last_modified <= if_modified_since:
-            return
-
-        indexes = bindings.Indexes()
-        # TODO implement ignoredArticles functionality
-        indexes.ignoredArticles = configs['ignoredArticles']
-        indexes.lastModified = last_modified
-        album_artists = model.get_album_artists()
-
-        def index_func(map, item):
-            first_char = item[:1].upper()
-            if first_char not in map:
-                map[first_char] = []
-            map[first_char].append(item)
-            return map
-
-        # Map the uppercased character to a list of album artists whose names
-        # start with that character
-        char_map = reduce(
-            index_func,
-            album_artists,
-            dict()
-        )
-        for char, artists in sorted(char_map.iteritems()):
-            index = bindings.Index(name=char)
-            for artist in artists:
-                index.append(bindings.Artist(id=artist, name=artist))
-            indexes.append(index)
-
-        # Get items without albums
-        children = model.get_singletons()
-        for child in children:
-            indexes.append(
-                bindings.Child(
-                    isDir=False,
-                    id=child.id,
-                    title=child.title,
-                    artist=child.artist
+class ApiBlueprint(Blueprint):
+    def route(self, rule, **options):
+        def decorator(generate_response_func):
+            self.add_url_rule(
+                rule,
+                view_func=ResponseView.as_view(
+                    generate_response_func.__name__,
+                    generate_response_func=generate_response_func
                 )
             )
-        response.indexes = indexes
+            return generate_response_func
 
-    def _get_user():
-        user = bindings.User(
-            username=configs[u'username'],
-            scrobblingEnabled=False,
-            adminRole=True,
-            settingsRole=False,
-            downloadRole=True,
-            uploadRole=False,
-            playlistRole=True,
-            coverArtRole=True,
-            commentRole=False,
-            podcastRole=False,
-            streamRole=True,
-            jukeboxRole=False,
-            shareRole=False,
-            videoConversionRole=False,
-        )
-        user.append(1)  # beets music folder id
-        return user
+        return decorator
 
-    def get_user(response):
-        if u'username' not in request.args:
-            required_parameter_missing(response)
-        elif request.args.get(u'username') != configs[u'username']:
-            abort(404)
-        else:
-            response.user = _get_user()
-
-    def get_users(response):
-        response.users = bindings.Users()
-        response.users.append(_get_user())
-
-    def create_user(response):
-        forbidden(response)
-
-    @rest_api.before_request
-    def authenticate():
-        if 'u' not in request.args:
-            abort(403)
-        username = request.args.get('u')
-        if username != configs[u'username']:
-            abort(403)
-
-        if 'p' in request.args:
-            password = request.args.get('p')
-            if password.startswith(u'enc:'):
-                # It is hex encoded
-                password = bytearray.fromhex(password[4:]).decode()
-            if password != configs[u'password']:
-                abort(403)
-        elif 't' in request.args and 's' in request.args:
-            salt = request.args.get('s')
-            received_token = request.args.get('t')
-            message = hashlib.md5()
-            message.update(configs[u'password'] + salt)
-            expected_token = message.hexdigest()
-            print(received_token)
-            print(expected_token)
-            if received_token != expected_token:
-                abort(403)
-        else:
-            abort(403)
-
-    def error(code, generate_response_func):
-        rest_api.register_error_handler(
-            code,
-            ResponseView.as_view(
-                generate_response_func.__name__,
-                generate_response_func=generate_response_func
+    def error(self, code):
+        def decorator(generate_response_func):
+            self.register_error_handler(
+                code,
+                ResponseView.as_view(
+                    generate_response_func.__name__,
+                    generate_response_func=generate_response_func
+                )
             )
-        )
+            return generate_response_func
 
-    def route(end_point, generate_response_func):
-        rest_api.add_url_rule(
-            end_point,
-            view_func=ResponseView.as_view(
-                generate_response_func.__name__,
-                generate_response_func=generate_response_func
-            )
-        )
-
-    error(403, unauthenticated)
-    error(404, data_not_found)
-    route('/ping.view', ping)
-    route('/getLicenses.view', get_licenses)
-    route('/getMusicFolders.view', get_music_folders)
-    route('/getIndexes.view', get_indexes)
-    route('/getUser.view', get_user)
-    route('/getUsers.view', get_users)
-    route('/createUser.view', create_user)
-
-    return rest_api
+        return decorator
 
 
 class SubsonicServer(Flask):
@@ -227,7 +70,169 @@ class SubsonicServer(Flask):
         pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(
             bindings.Namespace)
 
+        api = ApiBlueprint('api', __name__)
+
+        @api.error(403)
+        def unauthenticated(response):
+            create_error_response(
+                response,
+                errors.AUTHENTICATION_ERROR_CODE,
+                errors.AUTHENTICATION_ERROR_MSG
+            )
+
+        def forbidden(response):
+            create_error_response(
+                response,
+                errors.USER_NOT_AUTHORIZED_ERROR_CODE,
+                errors.USER_NOT_AUTHORIZED_ERROR_MSG
+            )
+
+        @api.error(404)
+        def data_not_found(response):
+            create_error_response(
+                response,
+                errors.DATA_NOT_FOUND_ERROR_CODE,
+                errors.DATA_NOT_FOUND_ERROR_MSG
+            )
+
+        def required_parameter_missing(response):
+            create_error_response(
+                response,
+                errors.REQUIRED_PARAMETER_ERROR_CODE,
+                errors.REQUIRED_PARAMETER_ERROR_MSG
+            )
+
+        def create_error_response(response, code, message):
+            response.status = bindings.ResponseStatus.failed
+            response.error = bindings.Error(code=code, message=message)
+
+        @api.route('/ping.view')
+        def ping(_):
+            pass
+
+        @api.route('/getLicenses.view')
+        def get_licenses(response):
+            response.license = bindings.License(valid=True)
+
+        @api.route('/getMusicFolders.view')
+        def get_music_folders(response):
+            response.musicFolders = bindings.MusicFolders()
+            response.musicFolders.append(
+                bindings.MusicFolder(id=1, name='beets library'))
+
+        @api.route('/getIndexes.view')
+        def get_indexes(response):
+            if_modified_since = request.args.get('ifModifiedSince', 0)
+            last_modified = model.get_last_modified()
+            if last_modified <= if_modified_since:
+                return
+
+            indexes = bindings.Indexes()
+            # TODO implement ignoredArticles functionality
+            indexes.ignoredArticles = configs['ignoredArticles']
+            indexes.lastModified = last_modified
+            album_artists = model.get_album_artists()
+
+            def index_func(map, item):
+                first_char = item[:1].upper()
+                if first_char not in map:
+                    map[first_char] = []
+                map[first_char].append(item)
+                return map
+
+            # Map the uppercased character to a list of album artists whose
+            # names start with that character
+            char_map = reduce(
+                index_func,
+                album_artists,
+                dict()
+            )
+            for char, artists in sorted(char_map.iteritems()):
+                index = bindings.Index(name=char)
+                for artist in artists:
+                    index.append(bindings.Artist(id=artist, name=artist))
+                indexes.append(index)
+
+            # Get items without albums
+            children = model.get_singletons()
+            for child in children:
+                indexes.append(
+                    bindings.Child(
+                        isDir=False,
+                        id=child.id,
+                        title=child.title,
+                        artist=child.artist
+                    )
+                )
+            response.indexes = indexes
+
+        def _get_user():
+            user = bindings.User(
+                username=configs[u'username'],
+                scrobblingEnabled=False,
+                adminRole=True,
+                settingsRole=False,
+                downloadRole=True,
+                uploadRole=False,
+                playlistRole=True,
+                coverArtRole=True,
+                commentRole=False,
+                podcastRole=False,
+                streamRole=True,
+                jukeboxRole=False,
+                shareRole=False,
+                videoConversionRole=False,
+            )
+            user.append(1)  # beets music folder id
+            return user
+
+        @api.route('/getUser.view')
+        def get_user(response):
+            if u'username' not in request.args:
+                required_parameter_missing(response)
+            elif request.args.get(u'username') != configs[u'username']:
+                abort(404)
+            else:
+                response.user = _get_user()
+
+        @api.route('/getUsers.view')
+        def get_users(response):
+            response.users = bindings.Users()
+            response.users.append(_get_user())
+
+        @api.route('/createUser.view')
+        def create_user(response):
+            forbidden(response)
+
+        @api.before_request
+        def authenticate():
+            if 'u' not in request.args:
+                abort(403)
+            username = request.args.get('u')
+            if username != configs[u'username']:
+                abort(403)
+
+            if 'p' in request.args:
+                password = request.args.get('p')
+                if password.startswith(u'enc:'):
+                    # It is hex encoded
+                    password = bytearray.fromhex(password[4:]).decode()
+                if password != configs[u'password']:
+                    abort(403)
+            elif 't' in request.args and 's' in request.args:
+                salt = request.args.get('s')
+                received_token = request.args.get('t')
+                message = hashlib.md5()
+                message.update(configs[u'password'] + salt)
+                expected_token = message.hexdigest()
+                print(received_token)
+                print(expected_token)
+                if received_token != expected_token:
+                    abort(403)
+            else:
+                abort(403)
+
         self.register_blueprint(
-            create_blueprint(model, configs),
+            api,
             url_prefix='/rest'
         )
