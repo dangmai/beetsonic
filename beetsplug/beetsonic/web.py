@@ -37,6 +37,12 @@ class ResponseView(View):
 
 class ApiBlueprint(Blueprint):
     def route(self, rule, **options):
+        """
+        Custom route decorator for the API Blueprint
+        :param rule: The URL rule for this route
+        :param options: The options kwargs
+        :return: The decorated function
+        """
         def decorator(generate_response_func):
             self.add_url_rule(
                 rule,
@@ -50,6 +56,11 @@ class ApiBlueprint(Blueprint):
         return decorator
 
     def error(self, code):
+        """
+        Custom error decorator for the API Blueprint
+        :param code: The HTTP error code to handle
+        :return: The decorated function
+        """
         def decorator(generate_response_func):
             self.register_error_handler(
                 code,
@@ -61,6 +72,24 @@ class ApiBlueprint(Blueprint):
             return generate_response_func
 
         return decorator
+
+    def add_common_errors(self, rule_map, generate_response_func):
+        """
+        There are endpoints that we won't implement, because beets doesn't
+        have the tool to handle them. For those endpoints, we use this method
+        to make sure they return correct the correct error response.
+        :param rule_map: Map of the URL rule to the function name used by Flask
+        :param generate_response_func: Function used to generate the response
+        :return: None
+        """
+        for rule, route_fn in rule_map.iteritems():
+            self.add_url_rule(
+                rule,
+                view_func=ResponseView.as_view(
+                    route_fn,
+                    generate_response_func=generate_response_func
+                )
+            )
 
 
 class SubsonicServer(Flask):
@@ -200,21 +229,31 @@ class SubsonicServer(Flask):
             response.users = bindings.Users()
             response.users.append(_get_user())
 
-        @api.route('/createUser.view')
-        def create_user(response):
-            forbidden(response)
-
-        @api.route('/updateUser.view')
-        def update_user(response):
-            forbidden(response)
-
-        @api.route('/deleteUser.view')
-        def delete_user(response):
-            forbidden(response)
-
-        @api.route('/changePassword.view')
-        def change_password(response):
-            forbidden(response)
+        api.add_common_errors({
+            '/createUser.view': 'create_user',
+            '/updateUser.view': 'update_user',
+            '/deleteUser.view': 'delete_user',
+            '/changePassword.view': 'change_password',
+            '/createPlaylist.view': 'create_playlist',
+            '/updatePlaylist.view': 'update_playlist',
+            '/deletePlaylist.view': 'delete_playlist',
+            '/star.view': 'star',
+            '/unstar.view': 'unstar',
+            '/setRating.view': 'set_rating',
+            '/scrobble.view': 'scrobble',
+            '/createShare.view': 'create_share',
+            '/updateShare.view': 'update_share',
+            '/deleteShare.view': 'delete_share',
+            '/refreshPodcasts.view': 'refresh_podcasts',
+            '/createPodcastChannel.view': 'create_podcast_channel',
+            '/deletePodcastChannel.view': 'delete_podcast_channel',
+            '/deletePodcastEpisode.view': 'delete_podcast_episode',
+            '/downloadPodcastEpisode.view': 'download_podcast_episode',
+            '/jukeboxControl.view': 'jukebox_control',
+            '/addChatMessage.view': 'add_chat_message',
+            '/createBookmark.view': 'create_bookmark',
+            '/deleteBookmark.view': 'delete_bookmark',
+        }, forbidden)
 
         @api.before_request
         def authenticate():
@@ -237,8 +276,6 @@ class SubsonicServer(Flask):
                 message = hashlib.md5()
                 message.update(configs[u'password'] + salt)
                 expected_token = message.hexdigest()
-                print(received_token)
-                print(expected_token)
                 if received_token != expected_token:
                     abort(403)
             else:
