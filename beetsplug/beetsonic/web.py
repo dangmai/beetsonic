@@ -53,6 +53,7 @@ def create_blueprint(model):
             return
 
         response.indexes = bindings.Indexes()
+        # TODO add config options for ignoredArticles
         response.indexes.ignoredArticles = ''
         response.indexes.lastModified = last_modified
         album_artists = model.get_album_artists()
