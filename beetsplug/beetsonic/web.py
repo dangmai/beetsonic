@@ -10,6 +10,7 @@ from flask import request
 from flask.views import View
 
 import bindings
+from beetsplug.beetsonic import errors
 
 SUBSONIC_API_VERSION = '1.14.0'
 
@@ -40,8 +41,22 @@ def create_blueprint(model, configs):
     def unauthorized(response):
         create_error_response(
             response,
-            40,
-            u'Wrong authentication information'
+            errors.AUTHENTICATION_ERROR_CODE,
+            errors.AUTHENTICATION_ERROR_MSG
+        )
+
+    def data_not_found(response):
+        create_error_response(
+            response,
+            errors.DATA_NOT_FOUND_ERROR_CODE,
+            errors.DATA_NOT_FOUND_ERROR_MSG
+        )
+
+    def required_parameter_missing(response):
+        create_error_response(
+            response,
+            errors.REQUIRED_PARAMETER_ERROR_CODE,
+            errors.REQUIRED_PARAMETER_ERROR_MSG
         )
 
     def create_error_response(response, code, message):
@@ -106,9 +121,9 @@ def create_blueprint(model, configs):
 
     def get_user(response):
         if u'username' not in request.args:
-            create_error_response(response, 10, u'username is required')
+            required_parameter_missing(response)
         elif request.args.get(u'username') != configs[u'username']:
-            create_error_response(response, 70, u'user not found')
+            abort(404)
         else:
             user = bindings.User(
                 username=configs[u'username'],
@@ -176,6 +191,7 @@ def create_blueprint(model, configs):
         )
 
     error(403, unauthorized)
+    error(404, data_not_found)
     route('/ping.view', ping)
     route('/getLicenses.view', get_licenses)
     route('/getMusicFolders.view', get_music_folders)
