@@ -38,10 +38,15 @@ def create_blueprint(model, configs):
     rest_api = Blueprint('rest_api', __name__)
 
     def unauthorized(response):
-        response.error = bindings.Error(
-            code=40,
-            message=u'Wrong authentication information'
+        create_error_response(
+            response,
+            40,
+            u'Wrong authentication information'
         )
+
+    def create_error_response(response, code, message):
+        response.status = bindings.ResponseStatus.failed
+        response.error = bindings.Error(code=code, message=message)
 
     def ping(_):
         pass
@@ -97,8 +102,32 @@ def create_blueprint(model, configs):
                     artist=child.artist
                 )
             )
-
         response.indexes = indexes
+
+    def get_user(response):
+        if u'username' not in request.args:
+            create_error_response(response, 10, u'username is required')
+        elif request.args.get(u'username') != configs[u'username']:
+            create_error_response(response, 70, u'user not found')
+        else:
+            user = bindings.User(
+                username=configs[u'username'],
+                scrobblingEnabled=False,
+                adminRole=True,
+                settingsRole=False,
+                downloadRole=True,
+                uploadRole=False,
+                playlistRole=True,
+                coverArtRole=True,
+                commentRole=False,
+                podcastRole=False,
+                streamRole=True,
+                jukeboxRole=False,
+                shareRole=False,
+                videoConversionRole=False,
+            )
+            user.append(1)  # beets music folder id
+            response.user = user
 
     @rest_api.before_request
     def authenticate():
@@ -151,6 +180,7 @@ def create_blueprint(model, configs):
     route('/getLicenses.view', get_licenses)
     route('/getMusicFolders.view', get_music_folders)
     route('/getIndexes.view', get_indexes)
+    route('/getUser.view', get_user)
 
     return rest_api
 
