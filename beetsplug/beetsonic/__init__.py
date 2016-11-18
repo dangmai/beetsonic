@@ -22,17 +22,46 @@ from models import BeetModel
 from web import SubsonicServer
 
 
-def init_server(lib, opts, args):
-    model = BeetModel(lib)
-    app = SubsonicServer(model, __name__)
-    app.run(debug=True)
-
-
-beetsonic_cmd = Subcommand('sonic',
-                           help='Run Subsonic server interface for beets')
-beetsonic_cmd.func = init_server
-
-
 class BeetsonicPlugin(BeetsPlugin):
+    def __init__(self):
+        super(BeetsonicPlugin, self).__init__()
+        self.config.add({
+            'host': u'127.0.0.1',
+            'port': 5000,
+            'ignoredArticles': u'The El La Los Las Le Les'
+        })
+
     def commands(self):
-        return [beetsonic_cmd]
+        def init_server(lib, opts, args):
+            model = BeetModel(lib)
+            if opts.username is None:
+                raise KeyError('Username is required')
+            if opts.password is None:
+                raise KeyError('Password is required')
+            # Get all the args and opts into one variable
+
+            configs = {
+                u'host': self.config['host'].get(unicode),
+                u'port': self.config['port'].get(int),
+                u'debug': opts.debug,
+                u'username': opts.username,
+                u'password': opts.password,
+                u'ignoredArticles': self.config['ignoredArticles'].get(unicode),
+            }
+            app = SubsonicServer(model, configs, __name__)
+            app.run(
+                host=configs[u'host'],
+                port=configs[u'port'],
+                debug=configs[u'debug'],
+            )
+
+        cmd = Subcommand('sonic',
+                         help='Run Subsonic server interface for beets')
+        cmd.parser.add_option(u'-u', u'--username', action='store',
+                              help=u'username')
+        cmd.parser.add_option(u'-p', u'--password', action='store',
+                              help=u'password')
+        cmd.parser.add_option(u'-d', u'--debug', action='store_true',
+                              default=False, help=u'debug mode')
+        cmd.func = init_server
+        return [cmd]
