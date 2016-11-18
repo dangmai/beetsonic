@@ -119,30 +119,37 @@ def create_blueprint(model, configs):
             )
         response.indexes = indexes
 
+    def _get_user():
+        user = bindings.User(
+            username=configs[u'username'],
+            scrobblingEnabled=False,
+            adminRole=True,
+            settingsRole=False,
+            downloadRole=True,
+            uploadRole=False,
+            playlistRole=True,
+            coverArtRole=True,
+            commentRole=False,
+            podcastRole=False,
+            streamRole=True,
+            jukeboxRole=False,
+            shareRole=False,
+            videoConversionRole=False,
+        )
+        user.append(1)  # beets music folder id
+        return user
+
     def get_user(response):
         if u'username' not in request.args:
             required_parameter_missing(response)
         elif request.args.get(u'username') != configs[u'username']:
             abort(404)
         else:
-            user = bindings.User(
-                username=configs[u'username'],
-                scrobblingEnabled=False,
-                adminRole=True,
-                settingsRole=False,
-                downloadRole=True,
-                uploadRole=False,
-                playlistRole=True,
-                coverArtRole=True,
-                commentRole=False,
-                podcastRole=False,
-                streamRole=True,
-                jukeboxRole=False,
-                shareRole=False,
-                videoConversionRole=False,
-            )
-            user.append(1)  # beets music folder id
-            response.user = user
+            response.user = _get_user()
+
+    def get_users(response):
+        response.users = bindings.Users()
+        response.users.append(_get_user())
 
     @rest_api.before_request
     def authenticate():
@@ -197,6 +204,7 @@ def create_blueprint(model, configs):
     route('/getMusicFolders.view', get_music_folders)
     route('/getIndexes.view', get_indexes)
     route('/getUser.view', get_user)
+    route('/getUsers.view', get_users)
 
     return rest_api
 
