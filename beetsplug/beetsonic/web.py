@@ -45,9 +45,13 @@ class BinaryView(View):
 
     def __init__(self, location_fn):
         self.location_fn = location_fn
+        self.error_response = utils.create_subsonic_response(
+            SUBSONIC_API_VERSION,
+            bindings.ResponseStatus.failed
+        )
 
     def dispatch_request(self, *args, **kwargs):
-        location = self.location_fn()
+        location = self.location_fn(self.error_response)
         if isinstance(location, bindings.Response):
             # This is a convention we use to denote that there is an error
             content = location.toxml('utf-8')
@@ -216,6 +220,7 @@ class SubsonicServer(Flask):
             indexes.lastModified = last_modified
 
             # Get items without albums
+            # TODO get singletons as part of album if possible
             children = model.get_singletons()
             for child in children:
                 indexes.append(child)
@@ -276,13 +281,21 @@ class SubsonicServer(Flask):
                 required_parameter_missing(response)
             response.directory = model.get_music_directory(request.args[u'id'])
 
+        # TODO transcode the music
         @api.route_binary('/stream.view')
-        def stream():
-            error_response = utils.create_subsonic_response(
-                SUBSONIC_API_VERSION,
-                bindings.ResponseStatus.failed
-            )
+        def stream(error_response):
+            if 'id' not in request.args:
+                required_parameter_missing(error_response)
+                return error_response
+            id = request.args.get('id')
+            try:
+                return model.get_song_location(id)
+            except ValueError:
+                data_not_found(error_response)
+                return error_response
 
+        @api.route_binary('/download.view')
+        def download(error_response):
             if 'id' not in request.args:
                 required_parameter_missing(error_response)
                 return error_response
