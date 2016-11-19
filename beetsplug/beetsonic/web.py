@@ -48,7 +48,6 @@ class BinaryView(View):
 
     def dispatch_request(self, *args, **kwargs):
         location = self.location_fn()
-        print(location)
         if isinstance(location, bindings.Response):
             # This is a convention we use to denote that there is an error
             content = location.toxml('utf-8')

@@ -11,6 +11,7 @@ def create_subsonic_response(version, status=bindings.ResponseStatus.ok,
         status=status,
         **kwargs
     )
+    return response
 
 
 def create_artist(id, name, **kwargs):
