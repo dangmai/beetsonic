@@ -140,7 +140,7 @@ class SubsonicServer(Flask):
         def ping(_):
             pass
 
-        @api.route('/getLicenses.view')
+        @api.route('/getLicense.view')
         def get_licenses(response):
             response.license = bindings.License(valid=True)
 
