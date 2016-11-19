@@ -11,6 +11,7 @@ from flask.views import View
 
 import bindings
 from beetsplug.beetsonic import errors
+from beetsplug.beetsonic import utils
 
 SUBSONIC_API_VERSION = '1.14.0'
 
@@ -156,43 +157,15 @@ class SubsonicServer(Flask):
             if last_modified <= if_modified_since:
                 return
 
-            indexes = bindings.Indexes()
-            # TODO implement ignoredArticles functionality
-            indexes.ignoredArticles = configs['ignoredArticles']
-            indexes.lastModified = last_modified
             album_artists = model.get_album_artists()
-
-            def index_func(map, item):
-                first_char = item[:1].upper()
-                if first_char not in map:
-                    map[first_char] = []
-                map[first_char].append(item)
-                return map
-
-            # Map the uppercased character to a list of album artists whose
-            # names start with that character
-            char_map = reduce(
-                index_func,
-                album_artists,
-                dict()
-            )
-            for char, artists in sorted(char_map.iteritems()):
-                index = bindings.Index(name=char)
-                for artist in artists:
-                    index.append(bindings.Artist(id=artist, name=artist))
-                indexes.append(index)
+            indexes = utils.create_indexes(album_artists,
+                                           configs['ignoredArticles'])
+            indexes.lastModified = last_modified
 
             # Get items without albums
             children = model.get_singletons()
             for child in children:
-                indexes.append(
-                    bindings.Child(
-                        isDir=False,
-                        id=child.id,
-                        title=child.title,
-                        artist=child.artist
-                    )
-                )
+                indexes.append(child)
             response.indexes = indexes
 
         def _get_user():
