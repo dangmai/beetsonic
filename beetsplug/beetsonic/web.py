@@ -160,9 +160,7 @@ class SubsonicServer(Flask):
 
         @api.route('/getMusicFolders.view')
         def get_music_folders(response):
-            response.musicFolders = bindings.MusicFolders()
-            response.musicFolders.append(
-                bindings.MusicFolder(id=1, name='beets library'))
+            response.musicFolders = model.get_music_folders()
 
         @api.route('/getIndexes.view')
         def get_indexes(response):

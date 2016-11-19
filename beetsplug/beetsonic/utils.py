@@ -70,3 +70,28 @@ def create_indexes(artists, ignored_articles_str):
         indexes.append(index)
 
     return indexes
+
+
+def create_music_folders(music_folders):
+    """
+    Create a Music Folders object from a list of Music Folder objects
+    :param music_folders: List of Music Folder objects
+    :return: Music Folders object
+    """
+    folders = bindings.MusicFolders()
+    for music_folder in music_folders:
+        folders.append(music_folder)
+    return folders
+
+
+def create_music_folder(id, **kwargs):
+    """
+    Create a Music Folder object
+    :param id: Id of the Music Folder
+    :param kwargs: The other keyword arguments
+    :return: The Music Folder object
+    """
+    return bindings.MusicFolder(
+        id=id,
+        **kwargs
+    )

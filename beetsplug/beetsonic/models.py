@@ -3,6 +3,8 @@ Model to get music information from beets.
 """
 from beetsplug.beetsonic import utils
 
+BEET_MUSIC_FOLDER_ID = 1
+
 
 class BeetModel(object):
     def __init__(self, lib):
@@ -34,6 +36,21 @@ class BeetModel(object):
                 for item in results]
 
     def get_last_modified(self):
+        """
+        Get the timestamp of the last modified operation
+        :return: the Unix timestamp of the last modified operation
+        """
         with self.lib.transaction() as tx:
             rows = tx.query('SELECT max(mtime) FROM items')
         return rows[0][0]
+
+    @staticmethod
+    def get_music_folders():
+        """
+        Get the Music Folders object
+        :return: the Music Folders object
+        """
+        return utils.create_music_folders([
+            utils.create_music_folder(BEET_MUSIC_FOLDER_ID,
+                                      name='beets music folder')
+        ])
