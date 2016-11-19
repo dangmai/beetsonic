@@ -157,3 +157,12 @@ def create_songs(child_objects):
     for child in child_objects:
         songs.append(child)
     return songs
+
+
+def create_artist_info(**kwargs):
+    """
+    Create an ArtistInfo object.
+    :param kwargs: The properties of the ArtistInfo object.
+    :return: The ArtistInfo object.
+    """
+    return bindings.ArtistInfo(**kwargs)

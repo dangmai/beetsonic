@@ -281,6 +281,13 @@ class SubsonicServer(Flask):
                 required_parameter_missing(response)
             response.directory = model.get_music_directory(request.args[u'id'])
 
+        # TODO contact MusicBrainz for artist information
+        @api.route('/getArtistInfo.view')
+        def get_artist_info(response):
+            if u'id' not in request.args:
+                required_parameter_missing(response)
+            response.artistInfo = utils.create_artist_info()
+
         # TODO transcode the music
         @api.route_binary('/stream.view')
         def stream(error_response):
