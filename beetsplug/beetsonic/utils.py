@@ -31,7 +31,7 @@ def create_song(id, title, **kwargs):
     )
 
 
-def create_indexes(artists, ignoredArticles):
+def create_indexes(artists, ignored_articles_str):
     """
     Create indexes from a list of Artist objects.
     An index consists of an uppercase character, mapping to all the Artists
@@ -40,13 +40,19 @@ def create_indexes(artists, ignoredArticles):
     :param ignoredArticles: List of words to ignore while building the indexes.
     :return: An Indexes object
     """
-
+    ignored_articles = ignored_articles_str.split(' ')
     indexes = bindings.Indexes()
     # TODO implement ignoredArticles functionality
-    indexes.ignoredArticles = ignoredArticles
+    indexes.ignoredArticles = ignored_articles_str
 
     def index_func(map, artist):
-        first_char = artist.name[:1].upper()
+        """
+        The reducer function to index the list
+        """
+        name_parts = artist.name.split(' ')
+        while name_parts[0] in ignored_articles:
+            name_parts.pop(0)
+        first_char = name_parts[0][:1].upper()
         if first_char not in map:
             map[first_char] = []
         map[first_char].append(artist)
