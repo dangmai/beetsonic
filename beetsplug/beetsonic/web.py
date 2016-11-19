@@ -270,6 +270,12 @@ class SubsonicServer(Flask):
                                                           from_year, to_year,
                                                           music_folder_id)
 
+        @api.route('/getMusicDirectory.view')
+        def get_music_directory(response):
+            if u'id' not in request.args:
+                required_parameter_missing(response)
+            response.directory = model.get_music_directory(request.args[u'id'])
+
         @api.route_binary('/stream.view')
         def stream():
             error_response = utils.create_subsonic_response(

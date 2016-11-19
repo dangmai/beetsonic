@@ -30,8 +30,10 @@ def create_artist(id, name, **kwargs):
 def create_song(id, title, **kwargs):
     """
     Helper method to create a Child object, representing a Song.
-    :param name:
-    :return: A Child object
+    :param id: Id of the song.
+    :param title: Title of the song
+    :param kwargs: The other properties of the song.
+    :return: The Child object
     """
     return bindings.Child(
         id=id,
@@ -39,6 +41,44 @@ def create_song(id, title, **kwargs):
         isDir=False,
         **kwargs
     )
+
+
+def create_album(id, title, **kwargs):
+    """
+    Helper method to create a Child object, representing an Album.
+    :param id: The id of the album.
+    :param title: The title of the album.
+    :param kwargs: The other properties of the album.
+    :return: The Child object.
+    """
+    return bindings.Child(
+        id=id,
+        title=title,
+        album=title,
+        isDir=True,
+        **kwargs
+    )
+
+
+def create_directory(id, name, children=[], **kwargs):
+    """
+    Helper method to create a Directory object.
+    :param id: The id of the Directory.
+    :param name: The name of the Directory.
+    :param children: The Children objects to append to the Directory.
+    :param kwargs: The other properties of the Directory.
+    :return: The Directory object
+    """
+    directory = bindings.Directory(
+        id=id,
+        name=name,
+        **kwargs
+    )
+    for child in children:
+        directory.append(child)
+    return directory
+
+
 
 
 def create_indexes(artists, ignored_articles_str):

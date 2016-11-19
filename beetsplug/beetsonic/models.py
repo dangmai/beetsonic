@@ -71,10 +71,27 @@ class BeetModel(object):
 
     @staticmethod
     def _create_song(item):
-        # Create a Child object from beets' Item
+        """
+        Create a Child object from beets' Item.
+        :param item: The beet's Item object.
+        :return: The Child object.
+        """
         return utils.create_song(
             BeetIdType.get_item_id(item.id), item.title, album=item.album,
             artist=item.artist, year=item.year, genre=item.genre)
+
+    @staticmethod
+    def _create_album(album):
+        """
+        Create a Child object from beets' Album.
+        :param album: The beet's Album object.
+        :return: The Child object.
+        """
+        return utils.create_album(
+            BeetIdType.get_album_id(album['id']), album['album'],
+            artist=album['albumartist'], year=album['year'],
+            genre=album['genre']
+        )
 
     def get_album_artists(self):
         """
@@ -112,8 +129,34 @@ class BeetModel(object):
         """
         return utils.create_music_folders([
             utils.create_music_folder(BEET_MUSIC_FOLDER_ID,
-                                      name='beets music folder')
+                                      name=u'beets music folder')
         ])
+
+    def get_music_directory(self, id):
+        original_id = id
+        id = BeetIdType.get_type(id)
+        children = []
+        if id[0] is BeetIdType.album:
+            album = self.lib.get_album(int(id[1]))
+            name = album.album
+            children = [self._create_song(item) for item in album.items()]
+        elif id[0] is BeetIdType.artist:
+            with self.lib.transaction() as tx:
+                keys = ['id', 'album', 'albumartist', 'year', 'genre']
+                query = 'SELECT {} FROM albums WHERE albumartist=?'.format(
+                    ', '.join(keys)
+                )
+                rows = tx.query(
+                    query,
+                    (id[1],)
+                )
+            name = id[1]
+            for row in rows:
+                album = dict(zip(keys, row))
+                children.append(self._create_album(album))
+        else:
+            raise ValueError(u'Invalid Id type {}'.format(id[0]))
+        return utils.create_directory(original_id, name, children)
 
     def get_random_songs(self, size=10, genre=None, from_year=None,
                          to_year=None, music_folder_id=None):
