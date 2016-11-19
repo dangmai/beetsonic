@@ -58,7 +58,7 @@ class BinaryView(View):
             mimetype = 'text/xml'
             return Response(content, mimetype=mimetype)
         else:
-            return send_file(location)
+            return send_file(location, as_attachment=True)
 
 
 class ApiBlueprint(Blueprint):
