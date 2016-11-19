@@ -34,7 +34,7 @@ class ResponseView(View):
             mimetype = 'application/json'
         else:
             content = self.response.toxml('utf-8')
-            mimetype = 'application/xml'
+            mimetype = 'text/xml'
         return Response(content, mimetype=mimetype)
 
 
@@ -52,8 +52,6 @@ class BinaryView(View):
         if isinstance(location, bindings.Response):
             # This is a convention we use to denote that there is an error
             content = location.toxml('utf-8')
-            # Based on Subsonic documentation, we're supposed to send the
-            # resposne with mimetype text/xml for these errors.
             mimetype = 'text/xml'
             return Response(content, mimetype=mimetype)
         else:
