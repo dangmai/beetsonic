@@ -3,11 +3,58 @@ Model to get music information from beets.
 """
 import random
 
+import enum
 from beets.ui import decargs
 
 from beetsplug.beetsonic import utils
 
 BEET_MUSIC_FOLDER_ID = 1
+
+
+@enum.unique
+class BeetIdType(enum.Enum):
+    album = 'album'
+    item = 'item'
+    artist = 'artist'
+
+    @staticmethod
+    def get_type(value):
+        """
+        Return the BeetIdType for an Id value.
+        :param value: the Id value.
+        :return: the BeetIdType Enum.
+        """
+        value_parts = value.split(':')
+        if len(value_parts) <= 1:
+            raise ValueError(u'Invalid Id: {}'.format(value))
+        return BeetIdType(value_parts[0]), value_parts[1]
+
+    @staticmethod
+    def get_artist_id(name):
+        """
+        Return the Subsonic id for an artist.
+        :param name: The name of the artist.
+        :return: The Subsonic Id for that artist.
+        """
+        return BeetIdType.artist.value + ':' + name
+
+    @staticmethod
+    def get_album_id(album_id):
+        """
+        Return the Subsonic id for an album
+        :param album_id: The beets internal Id for an album.
+        :return: The Subsonic Id for that album.
+        """
+        return BeetIdType.album.value + ':' + str(album_id)
+
+    @staticmethod
+    def get_item_id(item_id):
+        """
+        Return the Subsonic id for a item
+        :param item_id: The beets internal Id for an Item.
+        :return: The Subsonic Id for that Item.
+        """
+        return BeetIdType.item.value + ':' + str(item_id)
 
 
 class BeetModel(object):
@@ -19,14 +66,15 @@ class BeetModel(object):
         # Since beets doesn't track artist ids, we'll make the id the name
         # of the artist, prefixed with the string 'artist:', in order to
         # differentiate between Artist and other metadata types.
-        return utils.create_artist('artist:' + name, name, **kwargs)
+        return utils.create_artist(BeetIdType.get_artist_id(name), name,
+                                   **kwargs)
 
     @staticmethod
     def _create_song(item):
         # Create a Child object from beets' Item
         return utils.create_song(
-            item.id, item.title, album=item.album, artist=item.artist,
-            year=item.year, genre=item.genre)
+            BeetIdType.get_item_id(item.id), item.title, album=item.album,
+            artist=item.artist, year=item.year, genre=item.genre)
 
     def get_album_artists(self):
         """
@@ -98,6 +146,7 @@ class BeetModel(object):
         return utils.create_songs(songs)
 
     def get_song_location(self, id):
+        id = BeetIdType.get_type(id)[1]
         item = self.lib.get_item(id)
         if not item:
             raise ValueError(u'Song with id {} not found'.format(id))

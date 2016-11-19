@@ -21,7 +21,7 @@ def create_artist(id, name, **kwargs):
     :return: The Artist object
     """
     return bindings.Artist(
-        id='artist:' + name,
+        id=id,
         name=name,
         **kwargs
     )
