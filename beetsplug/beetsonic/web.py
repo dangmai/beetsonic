@@ -13,7 +13,7 @@ import bindings
 from beetsplug.beetsonic import errors
 from beetsplug.beetsonic import utils
 
-SUBSONIC_API_VERSION = '1.14.0'
+SUBSONIC_API_VERSION = u'1.14.0'
 
 
 class ResponseView(View):
@@ -132,6 +132,20 @@ class SubsonicServer(Flask):
                 errors.REQUIRED_PARAMETER_ERROR_MSG
             )
 
+        def client_upgrade(response):
+            create_error_response(
+                response,
+                errors.CLIENT_UPGRADE_ERROR_CODE,
+                errors.CLIENT_UPGRADE_ERROR_MSG
+            )
+
+        def server_upgrade(response):
+            create_error_response(
+                response,
+                errors.SERVER_UPGRADE_ERROR_CODE,
+                errors.SERVER_UPGRADE_ERROR_MSG
+            )
+
         def create_error_response(response, code, message):
             response.status = bindings.ResponseStatus.failed
             response.error = bindings.Error(code=code, message=message)
@@ -227,6 +241,20 @@ class SubsonicServer(Flask):
             '/createBookmark.view': 'create_bookmark',
             '/deleteBookmark.view': 'delete_bookmark',
         }, forbidden)
+
+        @api.before_request
+        def check_version():
+            if 'v' not in request.args:
+                abort(403)
+            client_version = request.args.get('v')
+            client_version_parts = map(int, client_version.split('.'))
+            server_version_parts = map(int, SUBSONIC_API_VERSION.split('.'))
+            if client_version_parts[0] > server_version_parts[0]:
+                return ResponseView(server_upgrade).dispatch_request()
+            elif client_version_parts[0] < server_version_parts[0]:
+                return ResponseView(client_upgrade).dispatch_request()
+            elif client_version_parts[1] > server_version_parts[1]:
+                return ResponseView(server_upgrade).dispatch_request()
 
         @api.before_request
         def authenticate():
