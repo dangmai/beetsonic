@@ -4,6 +4,15 @@ Utilities module
 from beetsplug.beetsonic import bindings
 
 
+def create_subsonic_response(version, status=bindings.ResponseStatus.ok,
+                             **kwargs):
+    response = bindings.subsonic_response(
+        version=version,
+        status=status,
+        **kwargs
+    )
+
+
 def create_artist(id, name, **kwargs):
     """
     Helper method to create an Artist object.

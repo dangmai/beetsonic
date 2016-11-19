@@ -7,6 +7,7 @@ from flask import Flask
 from flask import Response
 from flask import abort
 from flask import request
+from flask import send_file
 from flask.views import View
 
 import bindings
@@ -17,11 +18,12 @@ SUBSONIC_API_VERSION = u'1.14.0'
 
 
 class ResponseView(View):
+    """
+    Used for common responses that contain the API results
+    """
     def __init__(self, generate_response_func=None):
         self.generate_response_func = generate_response_func
-        self.response = bindings.subsonic_response()
-        self.response.version = bindings.Version(SUBSONIC_API_VERSION)
-        self.response.status = bindings.ResponseStatus.ok
+        self.response = utils.create_subsonic_response(SUBSONIC_API_VERSION)
 
     def dispatch_request(self, *args, **kwargs):
         if self.generate_response_func:
@@ -34,6 +36,28 @@ class ResponseView(View):
             content = self.response.toxml('utf-8')
             mimetype = 'application/xml'
         return Response(content, mimetype=mimetype)
+
+
+class BinaryView(View):
+    """
+    Used for responses that contain binary data
+    """
+
+    def __init__(self, location_fn):
+        self.location_fn = location_fn
+
+    def dispatch_request(self, *args, **kwargs):
+        location = self.location_fn()
+        print(location)
+        if isinstance(location, bindings.Response):
+            # This is a convention we use to denote that there is an error
+            content = location.toxml('utf-8')
+            # Based on Subsonic documentation, we're supposed to send the
+            # resposne with mimetype text/xml for these errors.
+            mimetype = 'text/xml'
+            return Response(content, mimetype=mimetype)
+        else:
+            return send_file(location)
 
 
 class ApiBlueprint(Blueprint):
@@ -53,6 +77,26 @@ class ApiBlueprint(Blueprint):
                 )
             )
             return generate_response_func
+
+        return decorator
+
+    def route_binary(self, rule, **options):
+        """
+        Custom route_binary decorator for the API Blueprint
+        :param rule: The URL rule for this route
+        :param options: The options kwargs
+        :return: The decorated function
+        """
+
+        def decorator(location_fn):
+            self.add_url_rule(
+                rule,
+                view_func=BinaryView.as_view(
+                    location_fn.__name__,
+                    location_fn=location_fn
+                )
+            )
+            return location_fn
 
         return decorator
 
@@ -228,6 +272,23 @@ class SubsonicServer(Flask):
             response.randomSongs = model.get_random_songs(size, genre,
                                                           from_year, to_year,
                                                           music_folder_id)
+
+        @api.route_binary('/stream.view')
+        def stream():
+            error_response = utils.create_subsonic_response(
+                SUBSONIC_API_VERSION,
+                bindings.ResponseStatus.failed
+            )
+
+            if 'id' not in request.args:
+                required_parameter_missing(error_response)
+                return error_response
+            id = request.args.get('id')
+            try:
+                return model.get_song_location(id)
+            except ValueError:
+                data_not_found(error_response)
+                return error_response
 
         api.add_common_errors({
             '/createUser.view': 'create_user',

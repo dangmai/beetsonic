@@ -96,3 +96,10 @@ class BeetModel(object):
             songs = [self._create_song(item) for item in items]
 
         return utils.create_songs(songs)
+
+    def get_song_location(self, id):
+        results = self.lib.items(u'id:{}'.format(id))
+        songs = [item.path for item in results]
+        if len(songs) == 0 or len(songs) > 1:
+            raise ValueError(u'Song with id {} not found'.format(id))
+        return songs[0]
