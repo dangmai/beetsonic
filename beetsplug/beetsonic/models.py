@@ -1,6 +1,10 @@
 """
 Model to get music information from beets.
 """
+import random
+
+from beets.ui import decargs
+
 from beetsplug.beetsonic import utils
 
 BEET_MUSIC_FOLDER_ID = 1
@@ -17,6 +21,13 @@ class BeetModel(object):
         # differentiate between Artist and other metadata types.
         return utils.create_artist('artist:' + name, name, **kwargs)
 
+    @staticmethod
+    def _create_song(item):
+        # Create a Child object from beets' Item
+        return utils.create_song(
+            item.id, item.title, album=item.album, artist=item.artist,
+            year=item.year, genre=item.genre)
+
     def get_album_artists(self):
         """
         Get all album artists
@@ -29,11 +40,12 @@ class BeetModel(object):
         return [self._create_artist(row[0]) for row in rows]
 
     def get_singletons(self):
+        """
+        Get all the singletons in Child objects
+        :return: Child objects for singletons
+        """
         results = self.lib.items(u'singleton:true')
-        # return [item for item in results]
-        return [utils.create_song(item.id, item.title, album=item.album,
-                                  artist=item.artist)
-                for item in results]
+        return [self._create_song(item) for item in results]
 
     def get_last_modified(self):
         """
@@ -54,3 +66,33 @@ class BeetModel(object):
             utils.create_music_folder(BEET_MUSIC_FOLDER_ID,
                                       name='beets music folder')
         ])
+
+    def get_random_songs(self, size=10, genre=None, from_year=None,
+                         to_year=None, music_folder_id=None):
+        """
+        Get random songs wrapped in a Songs object
+        :param size: Maximum number of songs to return.
+        :param genre: Only returns songs belonging to this genre.
+        :param from_year: Only return songs published after or in this year.
+        :param to_year: Only return songs published before or in this year.
+        :param music_folder_id: Only return songs in this music folder.
+        :return: a Songs object.
+        """
+        songs = []
+        if not music_folder_id or music_folder_id == str(BEET_MUSIC_FOLDER_ID):
+            # Adapted from the Random plugin
+            query_parts = []
+            if genre:
+                query_parts.append('genre:{}'.format(genre))
+            if from_year or to_year:
+                from_year = from_year or ''
+                to_year = to_year or ''
+                year_range = [from_year, to_year]
+                query_parts.append('year:{}'.format('..'.join(year_range)))
+            query = decargs(query_parts)
+            result = list(self.lib.items(query))
+            number = min(len(result), size)
+            items = random.sample(result, number)
+            songs = [self._create_song(item) for item in items]
+
+        return utils.create_songs(songs)

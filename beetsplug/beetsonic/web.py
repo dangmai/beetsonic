@@ -214,6 +214,21 @@ class SubsonicServer(Flask):
             response.users = bindings.Users()
             response.users.append(_get_user())
 
+        @api.route('/getRandomSongs.view')
+        def get_random_songs(response):
+            size = request.args.get('size', 10)
+            if size < 0:
+                size = 0
+            elif size > 500:
+                size = 500
+            genre = request.args.get('genre', None)
+            from_year = request.args.get('fromYear', None)
+            to_year = request.args.get('toYear', None)
+            music_folder_id = request.args.get('musicFolderId', None)
+            response.randomSongs = model.get_random_songs(size, genre,
+                                                          from_year, to_year,
+                                                          music_folder_id)
+
         api.add_common_errors({
             '/createUser.view': 'create_user',
             '/updateUser.view': 'update_user',

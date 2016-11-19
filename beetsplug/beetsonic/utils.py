@@ -95,3 +95,15 @@ def create_music_folder(id, **kwargs):
         id=id,
         **kwargs
     )
+
+
+def create_songs(child_objects):
+    """
+    Create a Songs object from a list of Child objects.
+    :param child_objects: List of Child objects.
+    :return: a Songs object.
+    """
+    songs = bindings.Songs()
+    for child in child_objects:
+        songs.append(child)
+    return songs
