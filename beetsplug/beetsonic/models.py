@@ -194,3 +194,23 @@ class BeetModel(object):
         if not item:
             raise ValueError(u'Song with id {} not found'.format(id))
         return item.path
+
+    @staticmethod
+    def get_user(username):
+        return utils.create_user(
+            username=username,
+            scrobbling_enabled=False,
+            admin_role=True,
+            settings_role=False,
+            download_role=True,
+            upload_role=False,
+            playlist_role=True,
+            cover_art_role=True,
+            comment_role=False,
+            podcast_role=False,
+            stream_role=True,
+            jukebox_role=False,
+            share_role=False,
+            video_conversion_role=False,
+            folder_ids=[BEET_MUSIC_FOLDER_ID]
+        )

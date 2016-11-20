@@ -1,5 +1,6 @@
 import hashlib
 import json
+from functools import wraps
 
 import pyxb.utils.domutils
 from flask import Blueprint
@@ -62,6 +63,223 @@ class BinaryView(View):
 
 
 class ApiBlueprint(Blueprint):
+    def __init__(self, model, configs, *args, **kwargs):
+        super(ApiBlueprint, self).__init__(*args, **kwargs)
+        self.model = model
+        self.configs = configs
+
+        self._set_up_error_handlers()
+        self._set_up_routes(model, configs)
+
+    def _set_up_error_handlers(self):
+        self.register_error_handler(403, self.unauthenticated)
+        self.register_error_handler(404, self.data_not_found)
+
+    def _set_up_routes(self, model, configs):
+        @self.route('/ping.view')
+        def ping(_):
+            pass
+
+        @self.route('/getLicense.view')
+        def get_licenses(response):
+            response.license = bindings.License(valid=True)
+
+        @self.route('/getMusicFolders.view')
+        def get_music_folders(response):
+            response.musicFolders = model.get_music_folders()
+
+        @self.route('/getIndexes.view')
+        def get_indexes(response):
+            if_modified_since = request.args.get('ifModifiedSince', 0)
+            last_modified = model.get_last_modified()
+            if last_modified <= if_modified_since:
+                return
+
+            album_artists = model.get_album_artists()
+            indexes = utils.create_indexes(album_artists,
+                                           configs['ignoredArticles'])
+            indexes.lastModified = last_modified
+
+            # Get items without albums
+            # TODO get singletons as part of album if possible
+            children = model.get_singletons()
+            for child in children:
+                indexes.append(child)
+            response.indexes = indexes
+
+        @self.route('/getUser.view')
+        @self.require_arguments([u'username'])
+        def get_user(response):
+            if request.args.get(u'username') != configs[u'username']:
+                abort(404)
+            else:
+                response.user = model.get_user(configs[u'username'])
+
+        @self.route('/getUsers.view')
+        def get_users(response):
+            response.users = bindings.Users()
+            response.users.append(model.get_user(configs[u'username']))
+
+        @self.route('/getRandomSongs.view')
+        def get_random_songs(response):
+            size = request.args.get('size', 10)
+            if size < 0:
+                size = 0
+            elif size > 500:
+                size = 500
+            genre = request.args.get('genre', None)
+            from_year = request.args.get('fromYear', None)
+            to_year = request.args.get('toYear', None)
+            music_folder_id = request.args.get('musicFolderId', None)
+            response.randomSongs = model.get_random_songs(size, genre,
+                                                          from_year, to_year,
+                                                          music_folder_id)
+
+        @self.route('/getMusicDirectory.view')
+        @self.require_arguments([u'id'])
+        def get_music_directory(response):
+            response.directory = model.get_music_directory(request.args[u'id'])
+
+        # TODO contact MusicBrainz for artist information
+        @self.route('/getArtistInfo.view')
+        @self.require_arguments([u'id'])
+        def get_artist_info(response):
+            response.artistInfo = utils.create_artist_info()
+
+        # TODO transcode the music
+        @self.route_binary('/stream.view')
+        @self.require_arguments([u'id'])
+        def stream(error_response):
+            id = request.args.get('id')
+            try:
+                return model.get_song_location(id)
+            except ValueError:
+                self.data_not_found(error_response)
+                return error_response
+
+        @self.route_binary('/download.view')
+        @self.require_arguments([u'id'])
+        def download(error_response):
+            id = request.args.get('id')
+            try:
+                return model.get_song_location(id)
+            except ValueError:
+                self.data_not_found(error_response)
+                return error_response
+
+        self.add_common_errors({
+            '/createUser.view': 'create_user',
+            '/updateUser.view': 'update_user',
+            '/deleteUser.view': 'delete_user',
+            '/changePassword.view': 'change_password',
+            '/createPlaylist.view': 'create_playlist',
+            '/updatePlaylist.view': 'update_playlist',
+            '/deletePlaylist.view': 'delete_playlist',
+            '/star.view': 'star',
+            '/unstar.view': 'unstar',
+            '/setRating.view': 'set_rating',
+            '/scrobble.view': 'scrobble',
+            '/createShare.view': 'create_share',
+            '/updateShare.view': 'update_share',
+            '/deleteShare.view': 'delete_share',
+            '/refreshPodcasts.view': 'refresh_podcasts',
+            '/createPodcastChannel.view': 'create_podcast_channel',
+            '/deletePodcastChannel.view': 'delete_podcast_channel',
+            '/deletePodcastEpisode.view': 'delete_podcast_episode',
+            '/downloadPodcastEpisode.view': 'download_podcast_episode',
+            '/jukeboxControl.view': 'jukebox_control',
+            '/addChatMessage.view': 'add_chat_message',
+            '/createBookmark.view': 'create_bookmark',
+            '/deleteBookmark.view': 'delete_bookmark',
+        }, self.forbidden)
+
+        @self.before_request
+        def check_version():
+            if 'v' not in request.args:
+                abort(403)
+            client_version = request.args.get('v')
+            client_version_parts = map(int, client_version.split('.'))
+            server_version_parts = map(int, SUBSONIC_API_VERSION.split('.'))
+            if client_version_parts[0] > server_version_parts[0]:
+                return ResponseView(self.server_upgrade).dispatch_request()
+            elif client_version_parts[0] < server_version_parts[0]:
+                return ResponseView(self.client_upgrade).dispatch_request()
+            elif client_version_parts[1] > server_version_parts[1]:
+                return ResponseView(self.server_upgrade).dispatch_request()
+
+        @self.before_request
+        def authenticate():
+            if 'u' not in request.args:
+                abort(403)
+            username = request.args.get('u')
+            if username != configs[u'username']:
+                abort(403)
+
+            if 'p' in request.args:
+                password = request.args.get('p')
+                if password.startswith(u'enc:'):
+                    # It is hex encoded
+                    password = bytearray.fromhex(password[4:]).decode()
+                if password != configs[u'password']:
+                    abort(403)
+            elif 't' in request.args and 's' in request.args:
+                salt = request.args.get('s')
+                received_token = request.args.get('t')
+                message = hashlib.md5()
+                message.update(configs[u'password'] + salt)
+                expected_token = message.hexdigest()
+                if received_token != expected_token:
+                    abort(403)
+            else:
+                abort(403)
+
+    @staticmethod
+    def create_error_response(response, code, message):
+        response.status = bindings.ResponseStatus.failed
+        response.error = bindings.Error(code=code, message=message)
+
+    def unauthenticated(self, response):
+        self.create_error_response(
+            response,
+            errors.AUTHENTICATION_ERROR_CODE,
+            errors.AUTHENTICATION_ERROR_MSG
+        )
+
+    def forbidden(self, response):
+        self.create_error_response(
+            response,
+            errors.USER_NOT_AUTHORIZED_ERROR_CODE,
+            errors.USER_NOT_AUTHORIZED_ERROR_MSG
+        )
+
+    def data_not_found(self, response):
+        self.create_error_response(
+            response,
+            errors.DATA_NOT_FOUND_ERROR_CODE,
+            errors.DATA_NOT_FOUND_ERROR_MSG
+        )
+
+    def required_parameter_missing(self, response):
+        self.create_error_response(
+            response,
+            errors.REQUIRED_PARAMETER_ERROR_CODE,
+            errors.REQUIRED_PARAMETER_ERROR_MSG
+        )
+
+    def client_upgrade(self, response):
+        self.create_error_response(
+            response,
+            errors.CLIENT_UPGRADE_ERROR_CODE,
+            errors.CLIENT_UPGRADE_ERROR_MSG
+        )
+
+    def server_upgrade(self, response):
+        self.create_error_response(
+            response,
+            errors.SERVER_UPGRADE_ERROR_CODE,
+            errors.SERVER_UPGRADE_ERROR_MSG
+        )
+
     def route(self, rule, **options):
         """
         Custom route decorator for the API Blueprint
@@ -101,28 +319,46 @@ class ApiBlueprint(Blueprint):
 
         return decorator
 
-    def error(self, code):
+    def require_arguments(self, arguments):
         """
-        Custom error decorator for the API Blueprint
-        :param code: The HTTP error code to handle
-        :return: The decorated function
+        Decorator to check whether the arguments required are sent from the
+        client or not. Must be inside a route.
+        :param arguments: The arguments required.
+        :return: The decorated function.
         """
-        def decorator(generate_response_func):
-            self.register_error_handler(
-                code,
-                ResponseView.as_view(
-                    generate_response_func.__name__,
-                    generate_response_func=generate_response_func
-                )
-            )
-            return generate_response_func
+
+        def decorator(f):
+            @wraps(f)
+            def decorated_function(response, *args, **kwargs):
+                for argument in arguments:
+                    if argument not in request.args:
+                        self.required_parameter_missing(response)
+                        return response
+                return f(response, *args, **kwargs)
+
+            return decorated_function
 
         return decorator
+
+    def register_error_handler(self, code_or_exception, f):
+        """
+        Override Blueprint method to use ResponseView.
+        :param code_or_exception: Code or exception to catch.
+        :param f: Function to use in ResponseView.
+        :return: None
+        """
+        super(ApiBlueprint, self).register_error_handler(
+            code_or_exception,
+            ResponseView.as_view(
+                f.__name__,
+                generate_response_func=f
+            )
+        )
 
     def add_common_errors(self, rule_map, generate_response_func):
         """
         There are endpoints that we won't implement, because beets doesn't
-        have the tool to handle them. For those endpoints, we use this method
+        have the tools to handle them. For those endpoints, we use this method
         to make sure they return correct the correct error response.
         :param rule_map: Map of the URL rule to the function name used by Flask
         :param generate_response_func: Function used to generate the response
@@ -145,241 +381,6 @@ class SubsonicServer(Flask):
         pyxb.utils.domutils.BindingDOMSupport.SetDefaultNamespace(
             bindings.Namespace)
 
-        api = ApiBlueprint('api', __name__)
+        api = ApiBlueprint(model, configs, 'api', __name__)
 
-        @api.error(403)
-        def unauthenticated(response):
-            create_error_response(
-                response,
-                errors.AUTHENTICATION_ERROR_CODE,
-                errors.AUTHENTICATION_ERROR_MSG
-            )
-
-        def forbidden(response):
-            create_error_response(
-                response,
-                errors.USER_NOT_AUTHORIZED_ERROR_CODE,
-                errors.USER_NOT_AUTHORIZED_ERROR_MSG
-            )
-
-        @api.error(404)
-        def data_not_found(response):
-            create_error_response(
-                response,
-                errors.DATA_NOT_FOUND_ERROR_CODE,
-                errors.DATA_NOT_FOUND_ERROR_MSG
-            )
-
-        def required_parameter_missing(response):
-            create_error_response(
-                response,
-                errors.REQUIRED_PARAMETER_ERROR_CODE,
-                errors.REQUIRED_PARAMETER_ERROR_MSG
-            )
-
-        def client_upgrade(response):
-            create_error_response(
-                response,
-                errors.CLIENT_UPGRADE_ERROR_CODE,
-                errors.CLIENT_UPGRADE_ERROR_MSG
-            )
-
-        def server_upgrade(response):
-            create_error_response(
-                response,
-                errors.SERVER_UPGRADE_ERROR_CODE,
-                errors.SERVER_UPGRADE_ERROR_MSG
-            )
-
-        def create_error_response(response, code, message):
-            response.status = bindings.ResponseStatus.failed
-            response.error = bindings.Error(code=code, message=message)
-
-        @api.route('/ping.view')
-        def ping(_):
-            pass
-
-        @api.route('/getLicense.view')
-        def get_licenses(response):
-            response.license = bindings.License(valid=True)
-
-        @api.route('/getMusicFolders.view')
-        def get_music_folders(response):
-            response.musicFolders = model.get_music_folders()
-
-        @api.route('/getIndexes.view')
-        def get_indexes(response):
-            if_modified_since = request.args.get('ifModifiedSince', 0)
-            last_modified = model.get_last_modified()
-            if last_modified <= if_modified_since:
-                return
-
-            album_artists = model.get_album_artists()
-            indexes = utils.create_indexes(album_artists,
-                                           configs['ignoredArticles'])
-            indexes.lastModified = last_modified
-
-            # Get items without albums
-            # TODO get singletons as part of album if possible
-            children = model.get_singletons()
-            for child in children:
-                indexes.append(child)
-            response.indexes = indexes
-
-        def _get_user():
-            user = bindings.User(
-                username=configs[u'username'],
-                scrobblingEnabled=False,
-                adminRole=True,
-                settingsRole=False,
-                downloadRole=True,
-                uploadRole=False,
-                playlistRole=True,
-                coverArtRole=True,
-                commentRole=False,
-                podcastRole=False,
-                streamRole=True,
-                jukeboxRole=False,
-                shareRole=False,
-                videoConversionRole=False,
-            )
-            user.append(1)  # beets music folder id
-            return user
-
-        @api.route('/getUser.view')
-        def get_user(response):
-            if u'username' not in request.args:
-                required_parameter_missing(response)
-            elif request.args.get(u'username') != configs[u'username']:
-                abort(404)
-            else:
-                response.user = _get_user()
-
-        @api.route('/getUsers.view')
-        def get_users(response):
-            response.users = bindings.Users()
-            response.users.append(_get_user())
-
-        @api.route('/getRandomSongs.view')
-        def get_random_songs(response):
-            size = request.args.get('size', 10)
-            if size < 0:
-                size = 0
-            elif size > 500:
-                size = 500
-            genre = request.args.get('genre', None)
-            from_year = request.args.get('fromYear', None)
-            to_year = request.args.get('toYear', None)
-            music_folder_id = request.args.get('musicFolderId', None)
-            response.randomSongs = model.get_random_songs(size, genre,
-                                                          from_year, to_year,
-                                                          music_folder_id)
-
-        @api.route('/getMusicDirectory.view')
-        def get_music_directory(response):
-            if u'id' not in request.args:
-                required_parameter_missing(response)
-            response.directory = model.get_music_directory(request.args[u'id'])
-
-        # TODO contact MusicBrainz for artist information
-        @api.route('/getArtistInfo.view')
-        def get_artist_info(response):
-            if u'id' not in request.args:
-                required_parameter_missing(response)
-            response.artistInfo = utils.create_artist_info()
-
-        # TODO transcode the music
-        @api.route_binary('/stream.view')
-        def stream(error_response):
-            if 'id' not in request.args:
-                required_parameter_missing(error_response)
-                return error_response
-            id = request.args.get('id')
-            try:
-                return model.get_song_location(id)
-            except ValueError:
-                data_not_found(error_response)
-                return error_response
-
-        @api.route_binary('/download.view')
-        def download(error_response):
-            if 'id' not in request.args:
-                required_parameter_missing(error_response)
-                return error_response
-            id = request.args.get('id')
-            try:
-                return model.get_song_location(id)
-            except ValueError:
-                data_not_found(error_response)
-                return error_response
-
-        api.add_common_errors({
-            '/createUser.view': 'create_user',
-            '/updateUser.view': 'update_user',
-            '/deleteUser.view': 'delete_user',
-            '/changePassword.view': 'change_password',
-            '/createPlaylist.view': 'create_playlist',
-            '/updatePlaylist.view': 'update_playlist',
-            '/deletePlaylist.view': 'delete_playlist',
-            '/star.view': 'star',
-            '/unstar.view': 'unstar',
-            '/setRating.view': 'set_rating',
-            '/scrobble.view': 'scrobble',
-            '/createShare.view': 'create_share',
-            '/updateShare.view': 'update_share',
-            '/deleteShare.view': 'delete_share',
-            '/refreshPodcasts.view': 'refresh_podcasts',
-            '/createPodcastChannel.view': 'create_podcast_channel',
-            '/deletePodcastChannel.view': 'delete_podcast_channel',
-            '/deletePodcastEpisode.view': 'delete_podcast_episode',
-            '/downloadPodcastEpisode.view': 'download_podcast_episode',
-            '/jukeboxControl.view': 'jukebox_control',
-            '/addChatMessage.view': 'add_chat_message',
-            '/createBookmark.view': 'create_bookmark',
-            '/deleteBookmark.view': 'delete_bookmark',
-        }, forbidden)
-
-        @api.before_request
-        def check_version():
-            if 'v' not in request.args:
-                abort(403)
-            client_version = request.args.get('v')
-            client_version_parts = map(int, client_version.split('.'))
-            server_version_parts = map(int, SUBSONIC_API_VERSION.split('.'))
-            if client_version_parts[0] > server_version_parts[0]:
-                return ResponseView(server_upgrade).dispatch_request()
-            elif client_version_parts[0] < server_version_parts[0]:
-                return ResponseView(client_upgrade).dispatch_request()
-            elif client_version_parts[1] > server_version_parts[1]:
-                return ResponseView(server_upgrade).dispatch_request()
-
-        @api.before_request
-        def authenticate():
-            if 'u' not in request.args:
-                abort(403)
-            username = request.args.get('u')
-            if username != configs[u'username']:
-                abort(403)
-
-            if 'p' in request.args:
-                password = request.args.get('p')
-                if password.startswith(u'enc:'):
-                    # It is hex encoded
-                    password = bytearray.fromhex(password[4:]).decode()
-                if password != configs[u'password']:
-                    abort(403)
-            elif 't' in request.args and 's' in request.args:
-                salt = request.args.get('s')
-                received_token = request.args.get('t')
-                message = hashlib.md5()
-                message.update(configs[u'password'] + salt)
-                expected_token = message.hexdigest()
-                if received_token != expected_token:
-                    abort(403)
-            else:
-                abort(403)
-
-        self.register_blueprint(
-            api,
-            url_prefix='/rest'
-        )
+        self.register_blueprint(api, url_prefix='/rest')

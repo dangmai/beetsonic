@@ -79,6 +79,30 @@ def create_directory(id, name, children=[], **kwargs):
     return directory
 
 
+def create_user(username, scrobbling_enabled, admin_role, settings_role,
+                download_role, upload_role, playlist_role, cover_art_role,
+                comment_role, podcast_role, stream_role, jukebox_role,
+                share_role, video_conversion_role, folder_ids, **kwargs):
+    user = bindings.User(
+        username=username,
+        scrobblingEnabled=scrobbling_enabled,
+        adminRole=admin_role,
+        settingsRole=settings_role,
+        downloadRole=download_role,
+        uploadRole=upload_role,
+        playlistRole=playlist_role,
+        coverArtRole=cover_art_role,
+        commentRole=comment_role,
+        podcastRole=podcast_role,
+        streamRole=stream_role,
+        jukeboxRole=jukebox_role,
+        shareRole=share_role,
+        videoConversionRole=video_conversion_role,
+        **kwargs
+    )
+    for folder_id in folder_ids:
+        user.append(folder_id)
+    return user
 
 
 def create_indexes(artists, ignored_articles_str):
