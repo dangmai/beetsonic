@@ -274,3 +274,22 @@ class BeetModel(object):
         if not lyrics:
             return empty_lyrics
         return utils.create_lyrics(lyrics, artist=artist, title=title)
+
+    def get_genres(self):
+        album_query = 'SELECT genre, count(genre) FROM albums GROUP BY genre'
+        item_query = 'SELECT genre, count(genre) FROM items GROUP BY genre'
+        with self.lib.transaction() as tx:
+            distinct_album_genres = tx.query(album_query)
+            distinct_item_genres = tx.query(item_query)
+        album_genre_map = {row[0]: int(row[1]) for row in distinct_album_genres}
+        item_genre_map = {row[0]: int(row[1]) for row in distinct_item_genres}
+        all_genres = set(album_genre_map.keys()).union(
+            set(item_genre_map.keys())
+        )
+        genre_objs = [
+            utils.create_genre(
+                genre,
+                album_genre_map[genre] if album_genre_map.has_key(genre) else 0,
+                item_genre_map[genre] if item_genre_map.has_key(genre) else 0)
+            for genre in all_genres]
+        return utils.create_genres(genre_objs)

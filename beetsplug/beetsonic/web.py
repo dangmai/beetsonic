@@ -156,6 +156,10 @@ class ApiBlueprint(Blueprint):
                 title = request.args[u'title']
             response.lyrics = model.get_lyrics(artist, title)
 
+        @self.route('/getGenres.view')
+        def get_genres(response):
+            response.genres = model.get_genres()
+
         # TODO handle sizing request
         @self.route_binary('/getCoverArt.view')
         @self.require_arguments([u'id'])

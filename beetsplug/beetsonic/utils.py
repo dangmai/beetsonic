@@ -193,5 +193,34 @@ def create_artist_info(**kwargs):
 
 
 def create_lyrics(content, **kwargs):
+    """
+    Create a Lyrics object.
+    :param content: The content of the lyrics.
+    :param kwargs: Other properties of the Lyrics object.
+    :return: The Lyrics object.
+    """
     lyrics = bindings.Lyrics(content, **kwargs)
     return lyrics
+
+
+def create_genres(genre_objs):
+    """
+    Create a Genres object from a list of Genre objects.
+    :param genre_obs: List of Genre objects.
+    :return: The Genres object.
+    """
+    genres = bindings.Genres()
+    for genre_obj in genre_objs:
+        genres.append(genre_obj)
+    return genres
+
+
+def create_genre(name, album_count, song_count):
+    """
+    Create a Genre object.
+    :param name: Name of the genre.
+    :param song_count: The number of songs in the genre.
+    :param album_count: The number of albums in the genre.
+    :return: The Genre object.
+    """
+    return bindings.Genre(name, songCount=song_count, albumCount=album_count)
