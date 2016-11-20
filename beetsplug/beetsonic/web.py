@@ -146,11 +146,22 @@ class ApiBlueprint(Blueprint):
         def get_artist_info(response):
             response.artistInfo = utils.create_artist_info()
 
+        # TODO handle sizing request
+        @self.route_binary('/getCoverArt.view')
+        @self.require_arguments([u'id'])
+        def get_cover_art(error_response):
+            object_id = request.args.get(u'id')
+            location = model.get_cover_art(object_id)
+            if not location:
+                self.data_not_found(error_response)
+                return error_response
+            return location
+
         # TODO transcode the music
         @self.route_binary('/stream.view')
         @self.require_arguments([u'id'])
         def stream(error_response):
-            id = request.args.get('id')
+            id = request.args.get(u'id')
             try:
                 return model.get_song_location(id)
             except ValueError:

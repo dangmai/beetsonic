@@ -27,7 +27,13 @@ class BeetIdType(enum.Enum):
         value_parts = value.split(':')
         if len(value_parts) <= 1:
             raise ValueError(u'Invalid Id: {}'.format(value))
-        return BeetIdType(value_parts[0]), value_parts[1]
+        id_type = BeetIdType(value_parts[0])
+        if id_type is BeetIdType.album or id_type is BeetIdType.item:
+            id_value = int(value_parts[1])
+        else:
+            id_value = value_parts[1]
+
+        return id_type, id_value
 
     @staticmethod
     def get_artist_id(name):
@@ -132,31 +138,37 @@ class BeetModel(object):
                                       name=u'beets music folder')
         ])
 
-    def get_music_directory(self, id):
-        original_id = id
-        id = BeetIdType.get_type(id)
+    def _get_albums_from_artist(self, artist_name, columns):
+        """
+        Get the Album objects from an artist.
+        :param artist_name: Name of the artist.
+        :param columns: The columns to fetch from the table.
+        :return: A list of Album objects.
+        """
+        with self.lib.transaction() as tx:
+            query = 'SELECT {} FROM albums WHERE albumartist=?'.format(
+                ', '.join(columns)
+            )
+            rows = tx.query(query, (artist_name,))
+        albums = [dict(zip(columns, row)) for row in rows]
+        return albums
+
+    def get_music_directory(self, object_id):
+        beet_id = BeetIdType.get_type(object_id)
         children = []
-        if id[0] is BeetIdType.album:
-            album = self.lib.get_album(int(id[1]))
+        if beet_id[0] is BeetIdType.album:
+            album = self.lib.get_album(beet_id[1])
             name = album.album
             children = [self._create_song(item) for item in album.items()]
-        elif id[0] is BeetIdType.artist:
-            with self.lib.transaction() as tx:
-                keys = ['id', 'album', 'albumartist', 'year', 'genre']
-                query = 'SELECT {} FROM albums WHERE albumartist=?'.format(
-                    ', '.join(keys)
-                )
-                rows = tx.query(
-                    query,
-                    (id[1],)
-                )
-            name = id[1]
-            for row in rows:
-                album = dict(zip(keys, row))
+        elif beet_id[0] is BeetIdType.artist:
+            name = beet_id[1]
+            columns = ['id', 'album', 'albumartist', 'year', 'genre']
+            albums = self._get_albums_from_artist(beet_id[1], columns)
+            for album in albums:
                 children.append(self._create_album(album))
         else:
-            raise ValueError(u'Invalid Id type {}'.format(id[0]))
-        return utils.create_directory(original_id, name, children)
+            raise ValueError(u'Invalid Id type {}'.format(beet_id[0]))
+        return utils.create_directory(object_id, name, children)
 
     def get_random_songs(self, size=10, genre=None, from_year=None,
                          to_year=None, music_folder_id=None):
@@ -214,3 +226,30 @@ class BeetModel(object):
             video_conversion_role=False,
             folder_ids=[BEET_MUSIC_FOLDER_ID]
         )
+
+    def get_cover_art(self, object_id):
+        """
+        Return the cover art location for an Item, Album or Artist.
+        :param object_id: The Id of the object.
+        :return: The path to the cover art file.
+        """
+        beet_id = BeetIdType.get_type(object_id)
+        location = None
+        if beet_id[0] is BeetIdType.album:
+            album = self.lib.get_album(beet_id[1])
+            if album:
+                location = album.artpath or None
+        elif beet_id[0] is BeetIdType.artist:
+            columns = ['artpath']
+            albums = self._get_albums_from_artist(beet_id[1], columns)
+            albums = [album for album in albums if album[u'artpath']]
+            if len(albums) > 0:
+                location = str(albums[0][u'artpath'])
+        elif beet_id[0] is BeetIdType.item:
+            item = self.lib.get_item(beet_id[1])
+            if item:
+                album = item.get_album()
+                if album and album.artpath:
+                    location = album.artpath
+
+        return location
