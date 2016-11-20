@@ -82,9 +82,10 @@ class BeetModel(object):
         :param item: The beet's Item object.
         :return: The Child object.
         """
+        item_id = BeetIdType.get_item_id(item.id)
         return utils.create_song(
-            BeetIdType.get_item_id(item.id), item.title, album=item.album,
-            artist=item.artist, year=item.year, genre=item.genre)
+            item_id, item.title, album=item.album, artist=item.artist,
+            year=item.year, genre=item.genre, coverArt=item_id)
 
     @staticmethod
     def _create_album(album):
@@ -93,10 +94,13 @@ class BeetModel(object):
         :param album: The beet's Album object.
         :return: The Child object.
         """
+        art_path = None
+        if album['artpath']:
+            art_path = BeetIdType.get_album_id(album[u'id'])
         return utils.create_album(
             BeetIdType.get_album_id(album['id']), album['album'],
             artist=album['albumartist'], year=album['year'],
-            genre=album['genre']
+            genre=album['genre'], coverArt=art_path
         )
 
     def get_album_artists(self):
@@ -162,7 +166,7 @@ class BeetModel(object):
             children = [self._create_song(item) for item in album.items()]
         elif beet_id[0] is BeetIdType.artist:
             name = beet_id[1]
-            columns = ['id', 'album', 'albumartist', 'year', 'genre']
+            columns = ['id', 'album', 'albumartist', 'year', 'genre', 'artpath']
             albums = self._get_albums_from_artist(beet_id[1], columns)
             for album in albums:
                 children.append(self._create_album(album))
