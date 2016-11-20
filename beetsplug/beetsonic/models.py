@@ -83,9 +83,10 @@ class BeetModel(object):
         :return: The Child object.
         """
         item_id = BeetIdType.get_item_id(item.id)
+        album_id = BeetIdType.get_album_id(item.album_id)
         return utils.create_song(
             item_id, item.title, album=item.album, artist=item.artist,
-            year=item.year, genre=item.genre, coverArt=item_id)
+            year=item.year, genre=item.genre, coverArt=album_id)
 
     @staticmethod
     def _create_album(album):
