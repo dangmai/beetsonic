@@ -5,6 +5,7 @@ import random
 
 import enum
 from beets.ui import decargs
+from beetsplug.lyrics import LyricsPlugin
 
 from beetsplug.beetsonic import utils
 
@@ -260,3 +261,16 @@ class BeetModel(object):
                     location = album.artpath
 
         return location
+
+    @staticmethod
+    def get_lyrics(artist, title):
+        # For now let's return an empty lyrics if either artist or lyrics is
+        # not passed in
+        empty_lyrics = utils.create_lyrics('', artist=artist, title=title)
+        if not artist or not title:
+            return empty_lyrics
+        lyrics_plugin = LyricsPlugin()
+        lyrics = lyrics_plugin.get_lyrics(artist, title)
+        if not lyrics:
+            return empty_lyrics
+        return utils.create_lyrics(lyrics, artist=artist, title=title)

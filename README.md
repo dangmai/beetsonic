@@ -12,3 +12,13 @@ In order to generate Python binding class from Subsonic XSD:
 ```
 pyxbgen -u xsd/subsonic-rest-api-version.xsd -m beetsplug.subsonic.bindings
 ```
+
+Dependencies
+------------
+
+```
+beets
+Flask
+PyXB
+requests
+```

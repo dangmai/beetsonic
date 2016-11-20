@@ -146,6 +146,16 @@ class ApiBlueprint(Blueprint):
         def get_artist_info(response):
             response.artistInfo = utils.create_artist_info()
 
+        @self.route('/getLyrics.view')
+        def get_lyrics(response):
+            artist = None
+            title = None
+            if u'artist' in request.args:
+                artist = request.args[u'artist']
+            if u'title' in request.args:
+                title = request.args[u'title']
+            response.lyrics = model.get_lyrics(artist, title)
+
         # TODO handle sizing request
         @self.route_binary('/getCoverArt.view')
         @self.require_arguments([u'id'])

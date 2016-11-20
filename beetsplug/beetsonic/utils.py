@@ -190,3 +190,8 @@ def create_artist_info(**kwargs):
     :return: The ArtistInfo object.
     """
     return bindings.ArtistInfo(**kwargs)
+
+
+def create_lyrics(content, **kwargs):
+    lyrics = bindings.Lyrics(content, **kwargs)
+    return lyrics
