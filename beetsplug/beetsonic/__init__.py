@@ -28,7 +28,8 @@ class BeetsonicPlugin(BeetsPlugin):
         self.config.add({
             'host': u'127.0.0.1',
             'port': 5000,
-            'ignoredArticles': u'The El La Los Las Le Les'
+            'cors': '',
+            'ignoredArticles': u'The El La Los Las Le Les',
         })
 
     def commands(self):
@@ -43,6 +44,7 @@ class BeetsonicPlugin(BeetsPlugin):
             configs = {
                 u'host': self.config['host'].get(unicode),
                 u'port': self.config['port'].get(int),
+                u'cors': self.config['cors'].get(unicode),
                 u'debug': opts.debug,
                 u'username': opts.username,
                 u'password': opts.password,

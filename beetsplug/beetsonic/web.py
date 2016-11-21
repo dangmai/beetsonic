@@ -10,6 +10,7 @@ from flask import abort
 from flask import request
 from flask import send_file
 from flask.views import View
+from flask_cors import CORS
 from xmljson import yahoo
 
 import bindings
@@ -36,7 +37,7 @@ class ResponseView(View):
             # We'll turn the XML content into JSON content here
             obj = yahoo.data(utils.strip_xml_namespaces(content))
             if return_format == 'json':
-                content = json.dumps(obj, indent=4)
+                content = json.dumps(obj, indent=2)
                 mimetype = 'application/json'
             else:
                 content = json.dumps(obj)
@@ -418,3 +419,5 @@ class SubsonicServer(Flask):
         api = ApiBlueprint(model, configs, 'api', __name__)
 
         self.register_blueprint(api, url_prefix='/rest')
+        if configs['cors']:
+            CORS(self, resources={r"/*": {"origins": configs['cors']}})
