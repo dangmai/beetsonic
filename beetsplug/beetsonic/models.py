@@ -89,7 +89,9 @@ class BeetModel(object):
             album_id = BeetIdType.get_album_id(item.album_id)
         return utils.create_song(
             item_id, item.title, album=item.album, artist=item.artist,
-            year=item.year, genre=item.genre, coverArt=album_id)
+            year=item.year, genre=item.genre, coverArt=album_id,
+            path=item.path.decode('unicode-escape'), parent=album_id,
+        )
 
     @staticmethod
     def _create_album(album):
@@ -104,7 +106,8 @@ class BeetModel(object):
         return utils.create_album(
             BeetIdType.get_album_id(album['id']), album['album'],
             artist=album['albumartist'], year=album['year'],
-            genre=album['genre'], coverArt=art_path
+            genre=album['genre'], coverArt=art_path,
+            parent=BeetIdType.get_artist_id(album['albumartist'])
         )
 
     def get_album_artists(self):
@@ -175,8 +178,11 @@ class BeetModel(object):
             for album in albums:
                 children.append(self._create_album(album))
         else:
-            raise ValueError(u'Invalid Id type {}'.format(beet_id[0]))
-        return utils.create_directory(object_id, name, children)
+            # It is the Item here
+            item = self.lib.get_item(beet_id[1])
+            name = item.title
+        return utils.create_directory(object_id, name, children,
+                                      parent=beet_id[1])
 
     def get_random_songs(self, size=10, genre=None, from_year=None,
                          to_year=None, music_folder_id=None):
