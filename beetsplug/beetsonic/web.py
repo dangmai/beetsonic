@@ -10,6 +10,7 @@ from flask import abort
 from flask import request
 from flask import send_file
 from flask.views import View
+from xmljson import yahoo
 
 import bindings
 from beetsplug.beetsonic import errors
@@ -30,11 +31,19 @@ class ResponseView(View):
         if self.generate_response_func:
             self.generate_response_func(self.response)
         return_format = request.args.get('f', 'xml')
-        if return_format == 'json':
-            content = json.dumps(self.response)
-            mimetype = 'application/json'
+        content = self.response.toxml('utf-8')
+        if return_format in ['json', 'jsonp']:
+            # We'll turn the XML content into JSON content here
+            obj = yahoo.data(utils.strip_xml_namespaces(content))
+            if return_format == 'json':
+                content = json.dumps(obj, indent=4)
+                mimetype = 'application/json'
+            else:
+                content = json.dumps(obj)
+                callback = request.args.get(u'callback', 'callback')
+                content = callback + '(' + content + ')'
+                mimetype = 'application/javascript'
         else:
-            content = self.response.toxml('utf-8')
             mimetype = 'text/xml'
         return Response(content, mimetype=mimetype)
 

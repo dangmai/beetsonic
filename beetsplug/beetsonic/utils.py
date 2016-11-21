@@ -1,7 +1,28 @@
 """
 Utilities module
 """
+import xml.etree.ElementTree as ET
+from StringIO import StringIO
+
 from beetsplug.beetsonic import bindings
+
+
+def strip_xml_namespaces(xml):
+    """
+    Parse an XML string and strips the namespace information.
+    :param xml: The Xml string to parse.
+    :return: The XML tree.
+    """
+    it = ET.iterparse(StringIO(xml))
+    for _, el in it:
+        if '}' in el.tag:
+            el.tag = el.tag.split('}', 1)[1]  # strip all namespaces
+        for at in el.attrib.keys():  # strip namespaces of attributes too
+            if '}' in at:
+                newat = at.split('}', 1)[1]
+                el.attrib[newat] = el.attrib[at]
+                del el.attrib[at]
+    return it.root
 
 
 def create_subsonic_response(version, status=bindings.ResponseStatus.ok,
