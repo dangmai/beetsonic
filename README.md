@@ -21,4 +21,5 @@ beets
 Flask
 PyXB
 requests
+flask-cors
 ```
