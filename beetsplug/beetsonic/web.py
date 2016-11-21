@@ -231,7 +231,8 @@ class ApiBlueprint(Blueprint):
         @self.before_request
         def check_version():
             if 'v' not in request.args:
-                abort(403)
+                return ResponseView(self.required_parameter_missing). \
+                    dispatch_request()
             client_version = request.args.get('v')
             client_version_parts = map(int, client_version.split('.'))
             server_version_parts = map(int, SUBSONIC_API_VERSION.split('.'))
