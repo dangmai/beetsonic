@@ -137,7 +137,6 @@ def create_indexes(artists, ignored_articles_str):
     """
     ignored_articles = ignored_articles_str.split(' ')
     indexes = bindings.Indexes()
-    # TODO implement ignoredArticles functionality
     indexes.ignoredArticles = ignored_articles_str
 
     def index_func(map, artist):
