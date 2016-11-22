@@ -1,9 +1,11 @@
+# -*- coding: utf-8 -*-
 """
 Model to get music information from beets.
 """
 import random
 
 import enum
+import six
 from beets.ui import decargs
 from beetsplug.lyrics import LyricsPlugin
 
@@ -87,10 +89,13 @@ class BeetModel(object):
         album_id = None
         if item.album_id:
             album_id = BeetIdType.get_album_id(item.album_id)
+        path = item.path
+        if isinstance(path, six.string_types):
+            path = item.path.decode('utf-8')
         return utils.create_song(
             item_id, item.title, album=item.album, artist=item.artist,
             year=item.year, genre=item.genre, coverArt=album_id,
-            path=item.path.decode('unicode-escape'), parent=album_id,
+            path=path, parent=album_id,
         )
 
     @staticmethod
