@@ -34,10 +34,10 @@ class ResponseView(View):
         if return_format in ['json', 'jsonp']:
             obj = utils.element_to_obj(self.response)
             if return_format == 'json':
-                content = json.dumps(obj, indent=3)
+                content = json.dumps(obj, cls=utils.JsonEncoder, indent=3)
                 mimetype = 'application/json'
             else:
-                content = json.dumps(obj)
+                content = json.dumps(obj, cls=utils.JsonEncoder)
                 callback = request.args.get(u'callback', 'callback')
                 content = callback + '(' + content + ')'
                 mimetype = 'application/javascript'
@@ -167,6 +167,11 @@ class ApiBlueprint(Blueprint):
         @self.route('/getGenres.view')
         def get_genres(response):
             response.genres = model.get_genres()
+
+        @self.route('/getPlaylists.view')
+        def get_playlists(response):
+            response.playlists = model.get_playlists(
+                configs[u'playlist_dir'], configs[u'username'])
 
         # TODO handle sizing request
         @self.route_binary('/getCoverArt.view')

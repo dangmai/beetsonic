@@ -1,30 +1,16 @@
 """
 Utilities module
 """
-import xml.etree.ElementTree as ET
-from StringIO import StringIO
+
+import io
+import json
+import os
+import time
+from datetime import datetime
 
 import pyxb
 
 from beetsplug.beetsonic import bindings
-
-
-def strip_xml_namespaces(xml):
-    """
-    Parse an XML string and strips the namespace information.
-    :param xml: The Xml string to parse.
-    :return: The XML tree.
-    """
-    it = ET.iterparse(StringIO(xml))
-    for _, el in it:
-        if '}' in el.tag:
-            el.tag = el.tag.split('}', 1)[1]  # strip all namespaces
-        for at in el.attrib.keys():  # strip namespaces of attributes too
-            if '}' in at:
-                newat = at.split('}', 1)[1]
-                el.attrib[newat] = el.attrib[at]
-                del el.attrib[at]
-    return it.root
 
 
 def element_to_obj(element, use_name=True):
@@ -38,7 +24,7 @@ def element_to_obj(element, use_name=True):
         child_elements = [element_to_obj(el, False) for el in element]
         element_name = element._PluralBinding__elementBinding.name().localName()
         return {element_name: child_elements}
-    else:
+    elif isinstance(element, pyxb.binding.basis.complexTypeDefinition):
         attributes = [attr.localName() for attr in element._AttributeMap.keys()]
         attr_map = {attr: getattr(element, attr)
                     for attr in attributes
@@ -54,6 +40,8 @@ def element_to_obj(element, use_name=True):
         if use_name:
             attr_map = {element._element().name().localName(): attr_map}
         return attr_map
+    else:
+        return element
 
 
 def create_subsonic_response(version, status=bindings.ResponseStatus.ok,
@@ -275,3 +263,71 @@ def create_genre(name, album_count, song_count):
     :return: The Genre object.
     """
     return bindings.Genre(name, songCount=song_count, albumCount=album_count)
+
+
+def create_playlists(playlists):
+    """
+    Create a Playlists object from a list of Playlist objects.
+    :param playlists: List of Playlist objects.
+    :param kwargs: Other properties of the Playlists.
+    :return: The Playlists object.
+    """
+    playlists_obj = bindings.Playlists()
+    for playlist in playlists:
+        playlists_obj.append(playlist)
+    return playlists_obj
+
+
+def create_playlist(songs, allowed_users, playlist_id, name, song_count,
+                    duration, created, changed, **kwargs):
+    """
+    Create a PlaylistWithSongs object.
+    :param bindings.Child[] songs: List of Child objects.
+    :param allowed_users: List of allowed users.
+    :param playlist_id: Id of the playlist.
+    :param name: Name of the playlist.
+    :param song_count: Number of songs in the playlist.
+    :param duration: Duration of the playlist.
+    :param created: When the playlist was created.
+    :param changed: When the playlist was last changed.
+    :param kwargs: Other properties of the playlist.
+    :return: The Playlist object.
+    """
+    playlist = bindings.PlaylistWithSongs(
+        id=playlist_id,
+        name=name,
+        songCount=song_count,
+        duration=duration,
+        created=created,
+        changed=changed,
+        **kwargs
+    )
+    # print allowed_users
+    for user in allowed_users:
+        playlist.append(user)
+    for song in songs:
+        playlist.append(song)
+    return playlist
+
+
+def parse_m3u(m3u_location):
+    """
+    Parse a m3u file.
+    :param m3u_location: Location of the m3u playlist.
+    :return: A list of absolute paths to the songs that are in the playlist.
+    """
+    with io.open(m3u_location, encoding='utf-8') as m3u:
+        items = m3u.readlines()
+    items = [os.path.abspath(item)
+             for item in items
+             if not item.startswith(u'#')]
+    return items
+
+
+class JsonEncoder(json.JSONEncoder):
+    """JSON Encoder that handles DateTime, converting it to Unix timestamp"""
+
+    def default(self, o):
+        if isinstance(o, datetime):
+            return time.mktime(o.timetuple())
+        return json.JSONEncoder.default(self, o)

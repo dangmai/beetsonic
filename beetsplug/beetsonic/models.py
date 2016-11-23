@@ -2,7 +2,11 @@
 """
 Model to get music information from beets.
 """
+import functools
+import glob
+import os
 import random
+from datetime import datetime
 
 import enum
 import six
@@ -304,3 +308,46 @@ class BeetModel(object):
                 item_genre_map[genre] if item_genre_map.has_key(genre) else 0)
             for genre in all_genres]
         return utils.create_genres(genre_objs)
+
+    def get_playlists(self, playlist_dir, username):
+        """
+        Get all m3u or m3u8 playlist from a directory, matching them with beets'
+        internal DB to ensure that only songs that are present in beets are
+        returned in the Playlists object.
+        :param playlist_dir: The directory to find playlists.
+        :return: The bound Playlists object.
+        """
+        m3us = glob.glob(os.path.join(playlist_dir, u'*.m3u*'))
+        playlists = []
+        for m3u in m3us:
+            try:
+                playlist_name = os.path.splitext(os.path.basename(m3u))[0]
+                # For now let's say the created date is the same as the last
+                # modified date
+                last_modified = datetime.fromtimestamp(os.path.getmtime(m3u))
+                songs = utils.parse_m3u(m3u)
+
+                duration = 0
+                num_songs = len(songs)
+                children = []
+
+                if len(songs) > 0:
+                    songs = [u'path:"{}"'.format(path) for path in songs]
+                    query = ', '.join(songs)
+                    items = self.lib.items(query)
+                    num_songs = len(items)
+                    duration = functools.reduce(
+                        lambda length, item: length + item.length,
+                        items,
+                        0
+                    )
+                    children = [self._create_song(item) for item in items]
+                playlists.append(
+                    utils.create_playlist(
+                        children, [username], playlist_name, playlist_name,
+                        num_songs,
+                        duration, last_modified, last_modified))
+            except IOError:
+                # For now let's silently ignore the errors
+                pass
+        return utils.create_playlists(playlists)

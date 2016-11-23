@@ -28,7 +28,8 @@ class BeetsonicPlugin(BeetsPlugin):
         self.config.add({
             'host': u'127.0.0.1',
             'port': 5000,
-            'cors': '',
+            'cors': u'',
+            'playlist_dir': u'',
             'ignoredArticles': u'The El La Los Las Le Les',
         })
 
@@ -45,6 +46,7 @@ class BeetsonicPlugin(BeetsPlugin):
                 u'host': self.config['host'].get(unicode),
                 u'port': self.config['port'].get(int),
                 u'cors': self.config['cors'].get(unicode),
+                u'playlist_dir': self.config['playlist_dir'].as_filename(),
                 u'debug': opts.debug,
                 u'username': opts.username,
                 u'password': opts.password,
