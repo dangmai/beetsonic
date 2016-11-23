@@ -11,7 +11,6 @@ from flask import request
 from flask import send_file
 from flask.views import View
 from flask_cors import CORS
-from xmljson import yahoo
 
 import bindings
 from beetsplug.beetsonic import errors
@@ -32,12 +31,10 @@ class ResponseView(View):
         if self.generate_response_func:
             self.generate_response_func(self.response)
         return_format = request.args.get('f', 'xml')
-        content = self.response.toxml('utf-8')
         if return_format in ['json', 'jsonp']:
-            # We'll turn the XML content into JSON content here
-            obj = yahoo.data(utils.strip_xml_namespaces(content))
+            obj = utils.element_to_obj(self.response)
             if return_format == 'json':
-                content = json.dumps(obj, indent=2)
+                content = json.dumps(obj, indent=3)
                 mimetype = 'application/json'
             else:
                 content = json.dumps(obj)
@@ -45,6 +42,7 @@ class ResponseView(View):
                 content = callback + '(' + content + ')'
                 mimetype = 'application/javascript'
         else:
+            content = self.response.toxml('utf-8')
             mimetype = 'text/xml'
         return Response(content, mimetype=mimetype)
 

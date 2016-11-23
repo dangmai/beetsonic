@@ -4,6 +4,8 @@ Utilities module
 import xml.etree.ElementTree as ET
 from StringIO import StringIO
 
+import pyxb
+
 from beetsplug.beetsonic import bindings
 
 
@@ -23,6 +25,35 @@ def strip_xml_namespaces(xml):
                 el.attrib[newat] = el.attrib[at]
                 del el.attrib[at]
     return it.root
+
+
+def element_to_obj(element, use_name=True):
+    """
+    Convert a bound element to a Python object that can be serialized.
+    :param pyxb.binding.basis.complexTypeDefinition element: The bound element.
+    :param use_name: Whether to use element name as the key or not.
+    :return: The converted Object.
+    """
+    if isinstance(element, pyxb.binding.content._PluralBinding):
+        child_elements = [element_to_obj(el, False) for el in element]
+        element_name = element._PluralBinding__elementBinding.name().localName()
+        return {element_name: child_elements}
+    else:
+        attributes = [attr.localName() for attr in element._AttributeMap.keys()]
+        attr_map = {attr: getattr(element, attr)
+                    for attr in attributes
+                    if getattr(element, attr) is not None}
+
+        child_elements = [el.localName()
+                          for el in element._ElementMap.keys()
+                          if getattr(element, el.localName()) is not None]
+        for child_element in child_elements:
+            attr_map.update(
+                element_to_obj(getattr(element, child_element), True))
+
+        if use_name:
+            attr_map = {element._element().name().localName(): attr_map}
+        return attr_map
 
 
 def create_subsonic_response(version, status=bindings.ResponseStatus.ok,
