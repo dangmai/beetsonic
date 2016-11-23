@@ -318,6 +318,14 @@ def create_podcasts():
     return bindings.Podcasts()
 
 
+def get_music_type():
+    """
+    Get the bound Music Type
+    :return: the MediaType for Music.
+    """
+    return bindings.MediaType.music
+
+
 def parse_m3u(m3u_location):
     """
     Parse a m3u file.
