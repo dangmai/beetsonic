@@ -23,6 +23,7 @@ class BeetIdType(enum.Enum):
     album = 'album'
     item = 'item'
     artist = 'artist'
+    playlist = 'playlist'
 
     @staticmethod
     def get_type(value):
@@ -54,7 +55,7 @@ class BeetIdType(enum.Enum):
     @staticmethod
     def get_album_id(album_id):
         """
-        Return the Subsonic id for an album
+        Return the Subsonic id for an album.
         :param album_id: The beets internal Id for an album.
         :return: The Subsonic Id for that album.
         """
@@ -63,11 +64,20 @@ class BeetIdType(enum.Enum):
     @staticmethod
     def get_item_id(item_id):
         """
-        Return the Subsonic id for a item
+        Return the Subsonic id for a item.
         :param item_id: The beets internal Id for an Item.
         :return: The Subsonic Id for that Item.
         """
         return BeetIdType.item.value + ':' + str(item_id)
+
+    @staticmethod
+    def get_playlist_id(playlist_name):
+        """
+        Return the Subsonic id for a playlist.
+        :param playlist_name: The name of the playlist.
+        :return: The Subsonic Id for that Playlist.
+        """
+        return BeetIdType.playlist.value + ':' + playlist_name
 
 
 class BeetModel(object):
@@ -320,34 +330,52 @@ class BeetModel(object):
         m3us = glob.glob(os.path.join(playlist_dir, u'*.m3u*'))
         playlists = []
         for m3u in m3us:
-            try:
-                playlist_name = os.path.splitext(os.path.basename(m3u))[0]
-                # For now let's say the created date is the same as the last
-                # modified date
-                last_modified = datetime.fromtimestamp(os.path.getmtime(m3u))
-                songs = utils.parse_m3u(m3u)
-
-                duration = 0
-                num_songs = len(songs)
-                children = []
-
-                if len(songs) > 0:
-                    songs = [u'path:"{}"'.format(path) for path in songs]
-                    query = ', '.join(songs)
-                    items = self.lib.items(query)
-                    num_songs = len(items)
-                    duration = functools.reduce(
-                        lambda length, item: length + item.length,
-                        items,
-                        0
-                    )
-                    children = [self._create_song(item) for item in items]
-                playlists.append(
-                    utils.create_playlist(
-                        children, [username], playlist_name, playlist_name,
-                        num_songs,
-                        duration, last_modified, last_modified))
-            except IOError:
-                # For now let's silently ignore the errors
-                pass
+            playlist = self._get_playlist(m3u, username)
+            if playlist:
+                playlists.append(playlist)
         return utils.create_playlists(playlists)
+
+    def _get_playlist(self, location, username):
+        try:
+            playlist_filename = os.path.basename(location)
+            playlist_name = os.path.splitext(playlist_filename)[0]
+            # For now let's say the created date is the same as the last
+            # modified date
+            last_modified = datetime.fromtimestamp(os.path.getmtime(location))
+            songs = utils.parse_m3u(location)
+
+            duration = 0
+            num_songs = len(songs)
+            children = []
+
+            if len(songs) > 0:
+                songs = [u'path:"{}"'.format(path) for path in songs]
+                query = ', '.join(songs)
+                items = self.lib.items(query)
+                num_songs = len(items)
+                duration = functools.reduce(
+                    lambda length, item: length + item.length,
+                    items,
+                    0
+                )
+                children = [self._create_song(item) for item in items]
+            return utils.create_playlist(
+                children, [username],
+                BeetIdType.get_playlist_id(playlist_filename),
+                playlist_name, num_songs, duration, last_modified,
+                last_modified)
+        except IOError:
+            return None
+
+    def get_playlist(self, playlist_id, playlist_dir, username):
+        """
+        Get a playlist from a directory, matching the items in it with beets'
+        internal DB to ensure that only songs that are present in beets are
+        returned.
+        :param playlist_id: The playlist id.
+        :param playlist_dir: The playlist directory.
+        :return: The bound Playlist object.
+        """
+        playlist_filename = BeetIdType.get_type(playlist_id)[1]
+        location = os.path.join(playlist_dir, playlist_filename)
+        return self._get_playlist(location, username)

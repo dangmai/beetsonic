@@ -173,6 +173,18 @@ class ApiBlueprint(Blueprint):
             response.playlists = model.get_playlists(
                 configs[u'playlist_dir'], configs[u'username'])
 
+        @self.route('/getPlaylist.view')
+        @self.require_arguments([u'id'])
+        def get_playlist(response):
+            try:
+                response.playlist = model.get_playlist(
+                    request.args.get(u'id'),
+                    configs[u'playlist_dir'],
+                    configs[u'username']
+                )
+            except OSError:
+                abort(404)
+
         # TODO handle sizing request
         @self.route_binary('/getCoverArt.view')
         @self.require_arguments([u'id'])
