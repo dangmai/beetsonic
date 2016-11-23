@@ -310,6 +310,14 @@ def create_playlist(songs, allowed_users, playlist_id, name, song_count,
     return playlist
 
 
+def create_podcasts():
+    """
+    Create a Podcasts object.
+    :return: A Podcasts object.
+    """
+    return bindings.Podcasts()
+
+
 def parse_m3u(m3u_location):
     """
     Parse a m3u file.

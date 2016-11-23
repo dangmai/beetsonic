@@ -1,5 +1,8 @@
 import hashlib
 import json
+import mimetypes
+import os
+import re
 from functools import wraps
 
 import pyxb.utils.domutils
@@ -67,7 +70,44 @@ class BinaryView(View):
             mimetype = 'text/xml'
             return Response(content, mimetype=mimetype)
         else:
-            return send_file(location, as_attachment=True)
+            return self.send_file_partial(location)
+
+    @staticmethod
+    def send_file_partial(path):
+        """
+        Simple wrapper around send_file which handles HTTP 206 Partial Content
+        (byte ranges).
+        """
+        range_header = request.headers.get('Range', None)
+        if not range_header: return send_file(path)
+
+        size = os.path.getsize(path)
+        byte1, byte2 = 0, None
+
+        m = re.search('(\d+)-(\d*)', range_header)
+        g = m.groups()
+
+        if g[0]: byte1 = int(g[0])
+        if g[1]: byte2 = int(g[1])
+
+        length = size - byte1
+        if byte2 is not None:
+            length = byte2 - byte1
+
+        data = None
+        with open(path, 'rb') as f:
+            f.seek(byte1)
+            data = f.read(length)
+
+        rv = Response(data,
+                      206,
+                      mimetype=mimetypes.guess_type(path)[0],
+                      direct_passthrough=True)
+        rv.headers.add('Content-Range',
+                       'bytes {0}-{1}/{2}'.format(byte1, byte1 + length - 1,
+                                                  size))
+
+        return rv
 
 
 class ApiBlueprint(Blueprint):
@@ -185,6 +225,10 @@ class ApiBlueprint(Blueprint):
             except OSError:
                 abort(404)
 
+        @self.route('/getPodcasts.view')
+        def get_podcasts(response):
+            response.podcasts = utils.create_podcasts()
+
         # TODO handle sizing request
         @self.route_binary('/getCoverArt.view')
         @self.require_arguments([u'id'])
@@ -283,6 +327,11 @@ class ApiBlueprint(Blueprint):
                     abort(403)
             else:
                 abort(403)
+
+        @self.after_request
+        def after_request(response):
+            response.headers.add('Accept-Ranges', 'bytes')
+            return response
 
     @staticmethod
     def create_error_response(response, code, message):
