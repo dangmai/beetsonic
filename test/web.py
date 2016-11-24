@@ -17,12 +17,12 @@ import random
 import shutil
 import string
 import tempfile
-import unittest
-from collections import namedtuple
+import time
+from datetime import datetime, timedelta
 
+import unittest2 as unittest
 from enum import Enum
 from mock import MagicMock
-from six.moves.urllib.parse import urlencode
 
 from beetsplug.beetsonic import bindings
 from beetsplug.beetsonic import errors
@@ -33,6 +33,27 @@ class ResponseType(Enum):
     xml = 'xml',
     json = 'json',
     jsonp = 'jsonp'
+
+
+class Struct:
+    """
+    Recursive class for building and representing object from a dictionary.
+    Code from: http://stackoverflow.com/a/6573827
+    """
+
+    def __init__(self, obj):
+        for k, v in obj.iteritems():
+            if isinstance(v, dict):
+                setattr(self, k, Struct(v))
+            else:
+                setattr(self, k, v)
+
+    def __getitem__(self, val):
+        return self.__dict__[val]
+
+    def __repr__(self):
+        return '{%s}' % str(', '.join('%s : %s' % (k, repr(v)) for
+                                      (k, v) in self.__dict__.iteritems()))
 
 
 class BeetsonicWebTestCase(unittest.TestCase):
@@ -54,26 +75,33 @@ class BeetsonicWebTestCase(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.configs['playlist_dir'])
 
-    @staticmethod
-    def _get_content(response, response_type=ResponseType.xml):
+    def _get_content(self, response, response_type=ResponseType.xml,
+                     callback='callback'):
         """Return the Response a Python object that has similar-ish structure
         even though the response types differ."""
         if response_type is ResponseType.xml:
             return bindings.CreateFromDocument(response)
         elif response_type is ResponseType.json:
-            return json.loads(
-                response,
-                object_hook=lambda d: namedtuple('X', d.keys())(*d.values()))
+            json_response = json.loads(response)
+            self.assertIn('subsonic-response', json_response,
+                          'JSON response must contain key subsonic-response')
+            return Struct(json_response['subsonic-response'])
+        elif response_type is ResponseType.jsonp:
+            self.assertTrue(response.startswith('{}('.format(callback)))
+            self.assertTrue(response.endswith(')'))
+            return self._get_content(response[len(callback) + 1:-1],
+                                     ResponseType.json)
 
     def _get_response(self, end_point='/rest/ping.view', params={},
                       response_type=ResponseType.xml):
         """Helper to get a response with some sensible defaults"""
         default_params = {
             'v': web.SUBSONIC_API_VERSION,
-            'f': ResponseType.xml.name,
+            'f': response_type.name,
             'c': 'TestApp',
             'u': self.configs['username'],
             'p': self.configs['password'],
+            'callback': 'callback',
         }
         default_params.update(params)
         # If the value in a dict is None, let's delete that item, since it
@@ -84,8 +112,9 @@ class BeetsonicWebTestCase(unittest.TestCase):
             if value is not None
             }
 
-        url = '{}?{}'.format(end_point, urlencode(default_params))
-        return self._get_content(self.app.get(url).data, response_type)
+        response = self.app.get(end_point, query_string=default_params)
+        return self._get_content(response.data, response_type,
+                                 default_params['callback'])
 
     def test_authentication_missing_username(self):
         response = self._get_response(params={'u': None})
@@ -93,6 +122,15 @@ class BeetsonicWebTestCase(unittest.TestCase):
         self.assertEqual(errors.REQUIRED_PARAMETER_ERROR_CODE,
                          response.error.code)
         self.assertEqual(errors.REQUIRED_PARAMETER_ERROR_MSG,
+                         response.error.message)
+
+    def test_authentication_wrong_username(self):
+        response = self._get_response(
+            params={'u': self.configs['username'] + 'a'})
+        self.assertNotEqual(None, response.error)
+        self.assertEqual(errors.AUTHENTICATION_ERROR_CODE,
+                         response.error.code)
+        self.assertEqual(errors.AUTHENTICATION_ERROR_MSG,
                          response.error.message)
 
     def test_authentication_missing_password_and_token(self):
@@ -229,13 +267,63 @@ class BeetsonicWebTestCase(unittest.TestCase):
         self.assertEqual(errors.SERVER_UPGRADE_ERROR_MSG,
                          response.error.message)
 
-    def test_ping(self):
-        response = self._get_response('/rest/ping.view')
-        self.assertEqual(bindings.ResponseStatus.ok,
-                         response.status)
+    def response_types(self, func):
+        """Decorator utility to run tests with different response types."""
+        for response_type in ResponseType:
+            with self.subTest(response_type=response_type):
+                self.model.reset_mock()
+                func(response_type)
 
-    def test_get_indexes(self):
-        response = self._get_response('/rest/getIndexes.view')
+    def test_ping(self):
+        @self.response_types
+        def actual_tests(response_type):
+            response = self._get_response('/rest/ping.view',
+                                          response_type=response_type)
+            self.assertEqual(bindings.ResponseStatus.ok, response.status)
+
+    @staticmethod
+    def contains(obj, attr):
+        """Helper method to check existence of key in an object."""
+        if isinstance(obj, Struct):
+            return hasattr(obj, attr)
+        return getattr(obj, attr) is not None
+
+    def test_get_indexes_without_modified(self):
+        @self.response_types
+        def actual_tests(response_type):
+            now = datetime.now()
+            self.model.get_last_modified.return_value = time.mktime(
+                now.timetuple()
+            )
+            client_last_modified = time.mktime(
+                (now + timedelta(0, -10)).timetuple()
+            )
+            response = self._get_response(
+                '/rest/getIndexes.view',
+                {'ifModifiedSince': client_last_modified},
+                response_type
+            )
+            self.assertFalse(self.contains(response, 'indexes'))
+            self.model.get_last_modified.assert_called_once()
+
+    def test_get_indexes_empty_indexes(self):
+        @self.response_types
+        def actual_tests(response_type):
+            now = time.mktime(datetime.now().timetuple())
+            self.model.reset_mock()
+            self.model.get_last_modified.return_value = now
+            self.model.get_album_artists.return_value = []
+            self.model.get_singletons.return_value = []
+            response = self._get_response('/rest/getIndexes.view',
+                                          response_type=response_type)
+            self.model.get_album_artists.assert_called_once()
+            self.model.get_singletons.assert_called_once()
+            self.assertNotEqual(None, response.indexes)
+            self.assertEqual(self.configs['ignoredArticles'],
+                             response.indexes.ignoredArticles)
+            self.assertEqual(now, response.indexes.lastModified)
+            self.assertEqual(0, len(response.indexes.index))
+            self.assertEqual(0, len(response.indexes.child))
 
 
 if __name__ == '__main__':

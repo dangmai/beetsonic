@@ -18,9 +18,10 @@ Dependencies
 
 ```
 beets
-Flask
-PyXB
-requests
-flask-cors
+Flask (for Web framework)
+PyXB (for binding Subsonic model)
+requests (for lyrics fetching)
+flask-cors (for CORS)
+unittest2 (for testing)
 mock (for testing)
 ```
