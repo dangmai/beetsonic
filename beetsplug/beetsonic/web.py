@@ -305,7 +305,8 @@ class ApiBlueprint(Blueprint):
         @self.before_request
         def authenticate():
             if 'u' not in request.args:
-                abort(403)
+                return ResponseView(self.required_parameter_missing) \
+                    .dispatch_request()
             username = request.args.get('u')
             if username != configs[u'username']:
                 abort(403)
@@ -326,7 +327,8 @@ class ApiBlueprint(Blueprint):
                 if received_token != expected_token:
                     abort(403)
             else:
-                abort(403)
+                return ResponseView(self.required_parameter_missing) \
+                    .dispatch_request()
 
         @self.after_request
         def after_request(response):
