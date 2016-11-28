@@ -225,6 +225,11 @@ class ApiBlueprint(Blueprint):
             except OSError:
                 abort(404)
 
+        @self.route('/getAlbum.view')
+        @self.require_arguments([u'id'])
+        def get_artist(response):
+            response.album = model.get_album(request.args.get(u'id'))
+
         @self.route('/getPodcasts.view')
         def get_podcasts(response):
             response.podcasts = utils.create_podcasts()

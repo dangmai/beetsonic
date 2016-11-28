@@ -18,7 +18,7 @@
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand
 
-from models import BeetModel
+from models import BeetsModel
 from web import SubsonicServer
 
 
@@ -35,7 +35,7 @@ class BeetsonicPlugin(BeetsPlugin):
 
     def commands(self):
         def init_server(lib, opts, args):
-            model = BeetModel(lib)
+            model = BeetsModel(lib)
             if opts.username is None:
                 raise KeyError('Username is required')
             if opts.password is None:

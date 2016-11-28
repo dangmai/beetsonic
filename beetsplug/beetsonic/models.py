@@ -80,7 +80,7 @@ class BeetIdType(enum.Enum):
         return BeetIdType.playlist.value + ':' + playlist_name
 
 
-class BeetModel(object):
+class BeetsModel(object):
     def __init__(self, lib):
         self.lib = lib
 
@@ -381,3 +381,31 @@ class BeetModel(object):
         playlist_filename = BeetIdType.get_type(playlist_id)[1]
         location = os.path.join(playlist_dir, playlist_filename)
         return self._get_playlist(location, username)
+
+    def get_album(self, album_id):
+        """
+        Get an AlbumWithSongsID3 object from an Id.
+        :param album_id: The Id of the Album.
+        :return: The AlbumWithSongsID3 object.
+        """
+        beet_id = BeetIdType.get_type(album_id)
+        if beet_id[0] is not BeetIdType.album:
+            raise ValueError('Wrong Album Id: {}'.format(album_id))
+        with self.lib.transaction() as tx:
+            album = self.lib.get_album(beet_id[1])
+            items = album.items()
+
+        children = [self._create_song(item) for item in items]
+        return utils.create_album_with_songs_id3(
+            id=BeetIdType.get_album_id(album.id),
+            name=album.album,
+            song_count=len(items),
+            duration=sum(item.length for item in items),
+            created=datetime.fromtimestamp(album.added),
+            children=children,
+            artist=album.albumartist,
+            artistId=BeetIdType.get_artist_id(album.albumartist),
+            coverArt=BeetIdType.get_album_id(album.id),
+            year=album.year,
+            genre=album.genre,
+        )

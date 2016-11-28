@@ -119,6 +119,32 @@ def create_directory(id, name, children=[], **kwargs):
     return directory
 
 
+def create_album_with_songs_id3(id, name, song_count, duration, created,
+                                children=[], **kwargs):
+    """
+    Helper method to create a AlbumWithSongsID3 object.
+    :param id: The id of the Album.
+    :param name: The name of the Album.
+    :param song_count: The number of songs in the album.
+    :param duration: The duration of the album.
+    :param created: When the album was created.
+    :param children: The Children objects to append to the album.
+    :param kwargs: Other properties of the album.
+    :return: The AlbumWithSongsID3 object.
+    """
+    album = bindings.AlbumWithSongsID3(
+        id=id,
+        name=name,
+        songCount=song_count,
+        duration=duration,
+        created=created,
+        **kwargs
+    )
+    for child in children:
+        album.append(child)
+    return album
+
+
 def create_user(username, scrobbling_enabled, admin_role, settings_role,
                 download_role, upload_role, playlist_role, cover_art_role,
                 comment_role, podcast_role, stream_role, jukebox_role,

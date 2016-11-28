@@ -116,13 +116,16 @@ class BeetsonicWebTestCase(unittest.TestCase):
         return self._get_content(response.data, response_type,
                                  default_params['callback'])
 
-    def test_authentication_missing_username(self):
-        response = self._get_response(params={'u': None})
-        self.assertNotEqual(None, response.error)
+    def _assert_missing_required_parameter(self, response_type, response):
+        self.assertTrue(self.contains(response, 'error'))
         self.assertEqual(errors.REQUIRED_PARAMETER_ERROR_CODE,
                          response.error.code)
         self.assertEqual(errors.REQUIRED_PARAMETER_ERROR_MSG,
                          response.error.message)
+
+    def test_authentication_missing_username(self):
+        response = self._get_response(params={'u': None})
+        self._assert_missing_required_parameter(ResponseType.xml, response)
 
     def test_authentication_wrong_username(self):
         response = self._get_response(
@@ -310,7 +313,6 @@ class BeetsonicWebTestCase(unittest.TestCase):
         @self.response_types
         def actual_tests(response_type):
             now = time.mktime(datetime.now().timetuple())
-            self.model.reset_mock()
             self.model.get_last_modified.return_value = now
             self.model.get_album_artists.return_value = []
             self.model.get_singletons.return_value = []
@@ -324,6 +326,34 @@ class BeetsonicWebTestCase(unittest.TestCase):
             self.assertEqual(now, response.indexes.lastModified)
             self.assertEqual(0, len(response.indexes.index))
             self.assertEqual(0, len(response.indexes.child))
+
+    def test_get_album_without_id(self):
+        @self.response_types
+        def actual_tests(response_type):
+            response = self._get_response('/rest/getAlbum.view',
+                                          response_type=response_type)
+            self._assert_missing_required_parameter(response_type, response)
+
+    def test_get_album_with_id(self):
+        @self.response_types
+        def actual_tests(response_type):
+            now = datetime.now()
+            self.model.get_album.return_value = bindings.AlbumWithSongsID3(
+                id='id',
+                name='name',
+                songCount=1,
+                duration=60,
+                created=now
+            )
+            response = self._get_response('/rest/getAlbum.view',
+                                          {'id': 'id'},
+                                          response_type)
+            self.model.get_album.assert_called_once_with('id')
+            self.assertTrue(self.contains(response, 'album'))
+            self.assertEqual('id', response.album.id)
+            self.assertEqual('name', response.album.name)
+            self.assertEqual(1, response.album.songCount)
+            self.assertEqual(60, response.album.duration)
 
 
 if __name__ == '__main__':
