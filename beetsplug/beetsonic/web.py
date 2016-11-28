@@ -18,6 +18,7 @@ from flask_cors import CORS
 import bindings
 from beetsplug.beetsonic import errors
 from beetsplug.beetsonic import utils
+from beetsplug.beetsonic.models import EntityNotFoundError
 
 SUBSONIC_API_VERSION = u'1.14.0'
 
@@ -122,6 +123,7 @@ class ApiBlueprint(Blueprint):
     def _set_up_error_handlers(self):
         self.register_error_handler(403, self.unauthenticated)
         self.register_error_handler(404, self.data_not_found)
+        self.register_error_handler(EntityNotFoundError, self.data_not_found)
 
     def _set_up_routes(self, model, configs):
         @self.route('/ping.view')
@@ -227,8 +229,14 @@ class ApiBlueprint(Blueprint):
 
         @self.route('/getAlbum.view')
         @self.require_arguments([u'id'])
-        def get_artist(response):
+        def get_album(response):
             response.album = model.get_album(request.args.get(u'id'))
+
+        @self.route('/getArtist.view')
+        @self.require_arguments([u'id'])
+        def get_artist(response):
+            response.artist = model.get_artist_with_albums(
+                request.args.get(u'id'))
 
         @self.route('/getPodcasts.view')
         def get_podcasts(response):

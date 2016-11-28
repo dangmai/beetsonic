@@ -67,6 +67,27 @@ def create_artist(id, name, **kwargs):
     )
 
 
+def create_artist_with_albums_id3(id, name, album_count, albums=[], **kwargs):
+    """
+    Create a ArtistWithAlbumsID3 object.
+    :param id: Id of the artist.
+    :param name: Name of the artist.
+    :param album_count: Number of the albums belonging to the artist.
+    :param bindings.AlbumID3 albums: A list of AlbumID3 objects that belongs to
+    the artist.
+    :return: The ArtistWithAlbumsID3 object.
+    """
+    artist = bindings.ArtistWithAlbumsID3(
+        id=id,
+        name=name,
+        albumCount=album_count,
+        **kwargs
+    )
+    for album in albums:
+        artist.append(album)
+    return artist
+
+
 def create_song(id, title, **kwargs):
     """
     Helper method to create a Child object, representing a Song.
@@ -117,6 +138,28 @@ def create_directory(id, name, children=[], **kwargs):
     for child in children:
         directory.append(child)
     return directory
+
+
+def create_album_id3(id, name, song_count, duration, created, **kwargs):
+    """
+    Helper method to create an AlbumID3 object.
+    :param id: The id of the album.
+    :param name: The name of the album.
+    :param song_count: The number of songs in the album.
+    :param duration: The duration of the album.
+    :param created: When the album was created.
+    :param kwargs: Other properties of the album.
+    :return: The AlbumID3 object.
+    """
+    album = bindings.AlbumID3(
+        id=id,
+        name=name,
+        songCount=song_count,
+        duration=duration,
+        created=created,
+        **kwargs
+    )
+    return album
 
 
 def create_album_with_songs_id3(id, name, song_count, duration, created,

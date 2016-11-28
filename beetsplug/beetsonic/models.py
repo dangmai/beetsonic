@@ -2,6 +2,13 @@
 """
 Model to get music information from beets.
 """
+from __future__ import (
+    division,
+    absolute_import,
+    print_function,
+    unicode_literals,
+)
+
 import functools
 import glob
 import os
@@ -34,7 +41,7 @@ class BeetIdType(enum.Enum):
         """
         value_parts = value.split(':')
         if len(value_parts) <= 1:
-            raise ValueError(u'Invalid Id: {}'.format(value))
+            raise ValueError('Invalid Id: {}'.format(value))
         id_type = BeetIdType(value_parts[0])
         if id_type is BeetIdType.album or id_type is BeetIdType.item:
             id_value = int(value_parts[1])
@@ -123,7 +130,7 @@ class BeetsModel(object):
         """
         art_path = None
         if album['artpath']:
-            art_path = BeetIdType.get_album_id(album[u'id'])
+            art_path = BeetIdType.get_album_id(album['id'])
         return utils.create_album(
             BeetIdType.get_album_id(album['id']), album['album'],
             artist=album['albumartist'], year=album['year'],
@@ -147,7 +154,7 @@ class BeetsModel(object):
         Get all the singletons in Child objects
         :return: Child objects for singletons
         """
-        results = self.lib.items(u'singleton:true')
+        results = self.lib.items('singleton:true')
         return [self._create_song(item) for item in results]
 
     def get_last_modified(self):
@@ -167,7 +174,7 @@ class BeetsModel(object):
         """
         return utils.create_music_folders([
             utils.create_music_folder(BEET_MUSIC_FOLDER_ID,
-                                      name=u'beets music folder')
+                                      name='beets music folder')
         ])
 
     def _get_albums_from_artist(self, artist_name, columns):
@@ -239,7 +246,7 @@ class BeetsModel(object):
         id = BeetIdType.get_type(id)[1]
         item = self.lib.get_item(id)
         if not item:
-            raise ValueError(u'Song with id {} not found'.format(id))
+            raise ValueError('Song with id {} not found'.format(id))
         return item.path
 
     @staticmethod
@@ -277,9 +284,9 @@ class BeetsModel(object):
         elif beet_id[0] is BeetIdType.artist:
             columns = ['artpath']
             albums = self._get_albums_from_artist(beet_id[1], columns)
-            albums = [album for album in albums if album[u'artpath']]
+            albums = [album for album in albums if album['artpath']]
             if len(albums) > 0:
-                location = str(albums[0][u'artpath'])
+                location = str(albums[0]['artpath'])
         elif beet_id[0] is BeetIdType.item:
             item = self.lib.get_item(beet_id[1])
             if item:
@@ -329,7 +336,7 @@ class BeetsModel(object):
         :param playlist_dir: The directory to find playlists.
         :return: The bound Playlists object.
         """
-        m3us = glob.glob(os.path.join(playlist_dir, u'*.m3u*'))
+        m3us = glob.glob(os.path.join(playlist_dir, '*.m3u*'))
         playlists = []
         for m3u in m3us:
             playlist = self._get_playlist(m3u, username)
@@ -351,7 +358,7 @@ class BeetsModel(object):
             children = []
 
             if len(songs) > 0:
-                songs = [u'path:"{}"'.format(path) for path in songs]
+                songs = ['path:"{}"'.format(path) for path in songs]
                 query = ', '.join(songs)
                 items = self.lib.items(query)
                 num_songs = len(items)
@@ -409,3 +416,44 @@ class BeetsModel(object):
             year=album.year,
             genre=album.genre,
         )
+
+    def get_artist_with_albums(self, artist_id):
+        """
+        Get an artist with associated albums from an artist id.
+        :param artist_id: The id of the artist.
+        :return: The ArtistWithAlbumsID3 object.
+        """
+        beet_id = BeetIdType.get_type(artist_id)
+        if beet_id[0] is not BeetIdType.artist:
+            raise ValueError('Wrong Artist Id: {}'.format(artist_id))
+        albums = self.lib.albums('albumartist:{}'.format(beet_id[1]))
+        if len(albums) == 0:
+            raise EntityNotFoundError('Artist {} not found'.format(beet_id[1]))
+        album_id3s = []
+        for album in albums:
+            items = album.items()
+            album_id3s.append(
+                utils.create_album_id3(
+                    id=BeetIdType.get_album_id(album.album),
+                    name=album.album,
+                    song_count=len(items),
+                    duration=sum(item.length for item in items),
+                    created=datetime.fromtimestamp(album.added),
+                    artist=album.albumartist,
+                    artistId=BeetIdType.get_artist_id(album.albumartist),
+                    coverArt=BeetIdType.get_album_id(album.id),
+                    year=album.year,
+                    genre=album.genre,
+                )
+            )
+        return utils.create_artist_with_albums_id3(
+            id=artist_id,
+            name=beet_id[1],
+            album_count=len(album_id3s),
+            albums=album_id3s,
+            coverArt=artist_id,
+        )
+
+
+class EntityNotFoundError(Exception):
+    pass

@@ -123,3 +123,18 @@ class BeetsModelTest(unittest.TestCase):
                          album.artistId)
         self.assertEqual(BeetIdType.get_album_id(self.a.id), album.coverArt)
         self.assertEqual(self.a.genre, album.genre)
+
+    def test_get_artist_with_albums(self):
+        # Create another album for the same artist
+        another = album()
+        another.album = 'album 2'
+        another.artpath = 'artpath'
+        self.lib.add(another)
+
+        artist_id = BeetIdType.get_artist_id(another.albumartist)
+        artist = self.model.get_artist_with_albums(artist_id)
+
+        self.assertEqual(artist_id, artist.id)
+        self.assertEqual(another.albumartist, artist.name)
+        self.assertEqual(artist_id, artist.coverArt)
+        self.assertEqual(2, len(artist.orderedContent()))

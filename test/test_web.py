@@ -35,25 +35,20 @@ class ResponseType(Enum):
     jsonp = 'jsonp'
 
 
-class Struct:
+class Struct(object):
+    """The recursive class for building and representing objects with.
+    Code from http://stackoverflow.com/a/6993694
     """
-    Recursive class for building and representing object from a dictionary.
-    Code from: http://stackoverflow.com/a/6573827
-    """
 
-    def __init__(self, obj):
-        for k, v in obj.iteritems():
-            if isinstance(v, dict):
-                setattr(self, k, Struct(v))
-            else:
-                setattr(self, k, v)
+    def __init__(self, data):
+        for name, value in data.iteritems():
+            setattr(self, name, self._wrap(value))
 
-    def __getitem__(self, val):
-        return self.__dict__[val]
-
-    def __repr__(self):
-        return '{%s}' % str(', '.join('%s : %s' % (k, repr(v)) for
-                                      (k, v) in self.__dict__.iteritems()))
+    def _wrap(self, value):
+        if isinstance(value, (tuple, list, set, frozenset)):
+            return type(value)([self._wrap(v) for v in value])
+        else:
+            return Struct(value) if isinstance(value, dict) else value
 
 
 class BeetsonicWebTestCase(unittest.TestCase):
@@ -291,6 +286,15 @@ class BeetsonicWebTestCase(unittest.TestCase):
             return hasattr(obj, attr)
         return getattr(obj, attr) is not None
 
+    @staticmethod
+    def children(obj, name):
+        """Helper method to return the children of an element."""
+        if isinstance(obj, Struct):
+            if not BeetsonicWebTestCase.contains(obj, name):
+                return []
+            return getattr(obj, name)
+        return [item.value for item in obj.orderedContent()]
+
     def test_get_indexes_without_modified(self):
         @self.response_types
         def actual_tests(response_type):
@@ -354,6 +358,49 @@ class BeetsonicWebTestCase(unittest.TestCase):
             self.assertEqual('name', response.album.name)
             self.assertEqual(1, response.album.songCount)
             self.assertEqual(60, response.album.duration)
+
+    def test_get_artist_without_id(self):
+        @self.response_types
+        def actual_tests(response_type):
+            response = self._get_response('/rest/getArtist.view',
+                                          response_type=response_type)
+            self._assert_missing_required_parameter(response_type, response)
+
+    def test_get_artist_with_id(self):
+        @self.response_types
+        def actual_tests(response_type):
+            now = datetime.now()
+            mock_album = bindings.AlbumID3(
+                id='id',
+                name='name',
+                songCount=1,
+                duration=60,
+                created=now,
+            )
+            mock_artist = bindings.ArtistWithAlbumsID3(
+                id='artistid',
+                name='artistname',
+                coverArt='coverart',
+                albumCount=1,
+            )
+            mock_artist.append(mock_album)
+            self.model.get_artist_with_albums.return_value = mock_artist
+            response = self._get_response('/rest/getArtist.view',
+                                          {'id': 'id'},
+                                          response_type)
+            self.model.get_artist_with_albums.assert_called_once_with('id')
+            self.assertTrue(self.contains(response, 'artist'))
+            self.assertEqual(mock_artist.id, response.artist.id)
+            self.assertEqual(mock_artist.name, response.artist.name)
+            self.assertEqual(mock_artist.coverArt, response.artist.coverArt)
+            self.assertEqual(mock_artist.albumCount, response.artist.albumCount)
+            children = self.children(response.artist, "album")
+            self.assertEqual(1, len(children))
+            returned_album = children[0]
+            self.assertEqual(mock_album.id, returned_album.id)
+            self.assertEqual(mock_album.name, returned_album.name)
+            self.assertEqual(mock_album.songCount, returned_album.songCount)
+            self.assertEqual(mock_album.duration, returned_album.duration)
 
 
 if __name__ == '__main__':
